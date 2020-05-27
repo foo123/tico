@@ -1,10 +1,3 @@
-# tico
-
-Tiny, dead-simple quasi-MVC web framework for PHP (v.1.0.0)
-
-**demo**
-
-```php
 <?php
 define('ROOT', dirname(__FILE__));
 
@@ -27,4 +20,3 @@ tico('http://localhost:8000', ROOT)
 ;
 
 exit;
-```
