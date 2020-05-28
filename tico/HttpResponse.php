@@ -1,4 +1,964 @@
 <?php
+/*
+ * This file is part of the Symfony package.
+ *
+ * (c) Fabien Potencier <fabien@symfony.com>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+//namespace Symfony\Component\HttpFoundation;
+
+/**
+ * Represents a cookie.
+ *
+ * @author Johannes M. Schmitt <schmittjoh@gmail.com>
+ */
+class HttpCookie
+{
+    protected $name;
+    protected $value;
+    protected $domain;
+    protected $expire;
+    protected $path;
+    protected $secure;
+    protected $httpOnly;
+    private $raw;
+    private $sameSite;
+
+    const SAMESITE_LAX = 'lax';
+    const SAMESITE_STRICT = 'strict';
+
+    /**
+     * Creates cookie from raw header string.
+     *
+     * @param string $cookie
+     * @param bool   $decode
+     *
+     * @return static
+     */
+    public static function fromString($cookie, $decode = false)
+    {
+        $data = array(
+            'expires' => 0,
+            'path' => '/',
+            'domain' => null,
+            'secure' => false,
+            'httponly' => false,
+            'raw' => !$decode,
+            'samesite' => null,
+        );
+        foreach (explode(';', $cookie) as $part) {
+            if (false === strpos($part, '=')) {
+                $key = trim($part);
+                $value = true;
+            } else {
+                list($key, $value) = explode('=', trim($part), 2);
+                $key = trim($key);
+                $value = trim($value);
+            }
+            if (!isset($data['name'])) {
+                $data['name'] = $decode ? urldecode($key) : $key;
+                $data['value'] = true === $value ? null : ($decode ? urldecode($value) : $value);
+                continue;
+            }
+            switch ($key = strtolower($key)) {
+                case 'name':
+                case 'value':
+                    break;
+                case 'max-age':
+                    $data['expires'] = time() + (int) $value;
+                    break;
+                default:
+                    $data[$key] = $value;
+                    break;
+            }
+        }
+
+        return new self($data['name'], $data['value'], $data['expires'], $data['path'], $data['domain'], $data['secure'], $data['httponly'], $data['raw'], $data['samesite']);
+    }
+
+    
+    /**
+     * @param string                        $name     The name of the cookie
+     * @param string|null                   $value    The value of the cookie
+     * @param int|string|\DateTimeInterface $expire   The time the cookie expires
+     * @param string                        $path     The path on the server in which the cookie will be available on
+     * @param string|null                   $domain   The domain that the cookie is available to
+     * @param bool                          $secure   Whether the cookie should only be transmitted over a secure HTTPS connection from the client
+     * @param bool                          $httpOnly Whether the cookie will be made accessible only through the HTTP protocol
+     * @param bool                          $raw      Whether the cookie value should be sent with no url encoding
+     * @param string|null                   $sameSite Whether the cookie will be available for cross-site requests
+     *
+     * @throws \InvalidArgumentException
+     */
+    public function __construct(/*string*/ $name, /*string*/ $value = null, $expire = 0, /*?string*/ $path = '/', /*string*/ $domain = null, /*bool*/ $secure = false, /*bool*/ $httpOnly = true, /*bool*/ $raw = false, /*string*/ $sameSite = null)
+    {
+        // from PHP source code
+        if (preg_match("/[=,; \t\r\n\013\014]/", $name)) {
+            throw new \InvalidArgumentException(sprintf('The cookie name "%s" contains invalid characters.', $name));
+        }
+
+        if (empty($name)) {
+            throw new \InvalidArgumentException('The cookie name cannot be empty.');
+        }
+
+        // convert expiration time to a Unix timestamp
+        if ($expire instanceof \DateTimeInterface) {
+            $expire = $expire->format('U');
+        } elseif (!is_numeric($expire)) {
+            $expire = strtotime($expire);
+
+            if (false === $expire) {
+                throw new \InvalidArgumentException('The cookie expiration time is not valid.');
+            }
+        }
+
+        $this->name = $name;
+        $this->value = $value;
+        $this->domain = $domain;
+        $this->expire = 0 < $expire ? (int) $expire : 0;
+        $this->path = empty($path) ? '/' : $path;
+        $this->secure = $secure;
+        $this->httpOnly = $httpOnly;
+        $this->raw = $raw;
+
+        if (null !== $sameSite) {
+            $sameSite = strtolower($sameSite);
+        }
+
+        if (!in_array($sameSite, array(self::SAMESITE_LAX, self::SAMESITE_STRICT, null), true)) {
+            throw new \InvalidArgumentException('The "sameSite" parameter value is not valid.');
+        }
+
+        $this->sameSite = $sameSite;
+    }
+
+    /**
+     * Returns the cookie as a string.
+     *
+     * @return string The cookie
+     */
+    public function __toString()
+    {
+        $str = ($this->isRaw() ? $this->getName() : urlencode($this->getName())).'=';
+
+        if ('' === (string) $this->getValue()) {
+            $str .= 'deleted; expires='.gmdate('D, d-M-Y H:i:s T', time() - 31536001).'; max-age=-31536001';
+        } else {
+            $str .= $this->isRaw() ? $this->getValue() : rawurlencode($this->getValue());
+
+            if (0 !== $this->getExpiresTime()) {
+                $str .= '; expires='.gmdate('D, d-M-Y H:i:s T', $this->getExpiresTime()).'; max-age='.$this->getMaxAge();
+            }
+        }
+
+        if ($this->getPath()) {
+            $str .= '; path='.$this->getPath();
+        }
+
+        if ($this->getDomain()) {
+            $str .= '; domain='.$this->getDomain();
+        }
+
+        if (true === $this->isSecure()) {
+            $str .= '; secure';
+        }
+
+        if (true === $this->isHttpOnly()) {
+            $str .= '; httponly';
+        }
+
+        if (null !== $this->getSameSite()) {
+            $str .= '; samesite='.$this->getSameSite();
+        }
+
+        return $str;
+    }
+
+    /**
+     * Gets the name of the cookie.
+     *
+     * @return string
+     */
+    public function getName()
+    {
+        return $this->name;
+    }
+
+    /**
+     * Gets the value of the cookie.
+     *
+     * @return string|null
+     */
+    public function getValue()
+    {
+        return $this->value;
+    }
+
+    /**
+     * Gets the domain that the cookie is available to.
+     *
+     * @return string|null
+     */
+    public function getDomain()
+    {
+        return $this->domain;
+    }
+
+    /**
+     * Gets the time the cookie expires.
+     *
+     * @return int
+     */
+    public function getExpiresTime()
+    {
+        return $this->expire;
+    }
+
+    /**
+     * Gets the max-age attribute.
+     *
+     * @return int
+     */
+    public function getMaxAge()
+    {
+        return 0 !== $this->expire ? $this->expire - time() : 0;
+    }
+
+    /**
+     * Gets the path on the server in which the cookie will be available on.
+     *
+     * @return string
+     */
+    public function getPath()
+    {
+        return $this->path;
+    }
+
+    /**
+     * Checks whether the cookie should only be transmitted over a secure HTTPS connection from the client.
+     *
+     * @return bool
+     */
+    public function isSecure()
+    {
+        return $this->secure;
+    }
+
+    /**
+     * Checks whether the cookie will be made accessible only through the HTTP protocol.
+     *
+     * @return bool
+     */
+    public function isHttpOnly()
+    {
+        return $this->httpOnly;
+    }
+
+    /**
+     * Whether this cookie is about to be cleared.
+     *
+     * @return bool
+     */
+    public function isCleared()
+    {
+        return $this->expire < time();
+    }
+
+    /**
+     * Checks if the cookie value should be sent with no url encoding.
+     *
+     * @return bool
+     */
+    public function isRaw()
+    {
+        return $this->raw;
+    }
+
+    /**
+     * Gets the SameSite attribute.
+     *
+     * @return string|null
+     */
+    public function getSameSite()
+    {
+        return $this->sameSite;
+    }
+}
+
+
+/*
+ * This file is part of the Symfony package.
+ *
+ * (c) Fabien Potencier <fabien@symfony.com>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+//namespace Symfony\Component\HttpFoundation;
+
+/**
+ * HeaderBag is a container for HTTP headers.
+ *
+ * @author Fabien Potencier <fabien@symfony.com>
+ */
+class HttpHeaderBag implements \IteratorAggregate, \Countable
+{
+    protected $headers = array();
+    protected $cacheControl = array();
+
+    /**
+     * @param array $headers An array of HTTP headers
+     */
+    public function __construct(/*array*/ $headers = array())
+    {
+        foreach ($headers as $key => $values) {
+            $this->set($key, $values);
+        }
+    }
+
+    /**
+     * Returns the headers as a string.
+     *
+     * @return string The headers
+     */
+    public function __toString()
+    {
+        if (!$headers = $this->all()) {
+            return '';
+        }
+
+        ksort($headers);
+        $max = max(array_map('strlen', array_keys($headers))) + 1;
+        $content = '';
+        foreach ($headers as $name => $values) {
+            $name = ucwords($name, '-');
+            foreach ($values as $value) {
+                $content .= sprintf("%-{$max}s %s\r\n", $name.':', $value);
+            }
+        }
+
+        return $content;
+    }
+
+    /**
+     * Returns the headers.
+     *
+     * @return array An array of headers
+     */
+    public function all()
+    {
+        return $this->headers;
+    }
+
+    /**
+     * Returns the parameter keys.
+     *
+     * @return array An array of parameter keys
+     */
+    public function keys()
+    {
+        return array_keys($this->all());
+    }
+
+    /**
+     * Replaces the current HTTP headers by a new set.
+     *
+     * @param array $headers An array of HTTP headers
+     */
+    public function replace(/*array*/ $headers = array())
+    {
+        $this->headers = array();
+        $this->add($headers);
+    }
+
+    /**
+     * Adds new headers the current HTTP headers set.
+     *
+     * @param array $headers An array of HTTP headers
+     */
+    public function add(/*array*/ $headers)
+    {
+        foreach ($headers as $key => $values) {
+            $this->set($key, $values);
+        }
+    }
+
+    /**
+     * Returns a header value by name.
+     *
+     * @param string          $key     The header name
+     * @param string|string[] $default The default value
+     * @param bool            $first   Whether to return the first value or all header values
+     *
+     * @return string|string[] The first header value or default value if $first is true, an array of values otherwise
+     */
+    public function get($key, $default = null, $first = true)
+    {
+        $key = str_replace('_', '-', strtolower($key));
+        $headers = $this->all();
+
+        if (!array_key_exists($key, $headers)) {
+            if (null === $default) {
+                return $first ? null : array();
+            }
+
+            return $first ? $default : array($default);
+        }
+
+        if ($first) {
+            return \count($headers[$key]) ? $headers[$key][0] : $default;
+        }
+
+        return $headers[$key];
+    }
+
+    /**
+     * Sets a header by name.
+     *
+     * @param string          $key     The key
+     * @param string|string[] $values  The value or an array of values
+     * @param bool            $replace Whether to replace the actual value or not (true by default)
+     */
+    public function set($key, $values, $replace = true)
+    {
+        $key = str_replace('_', '-', strtolower($key));
+
+        if (\is_array($values)) {
+            $values = array_values($values);
+
+            if (true === $replace || !isset($this->headers[$key])) {
+                $this->headers[$key] = $values;
+            } else {
+                $this->headers[$key] = array_merge($this->headers[$key], $values);
+            }
+        } else {
+            if (true === $replace || !isset($this->headers[$key])) {
+                $this->headers[$key] = array($values);
+            } else {
+                $this->headers[$key][] = $values;
+            }
+        }
+
+        if ('cache-control' === $key) {
+            $this->cacheControl = $this->parseCacheControl(implode(', ', $this->headers[$key]));
+        }
+    }
+
+    /**
+     * Returns true if the HTTP header is defined.
+     *
+     * @param string $key The HTTP header
+     *
+     * @return bool true if the parameter exists, false otherwise
+     */
+    public function has($key)
+    {
+        return array_key_exists(str_replace('_', '-', strtolower($key)), $this->all());
+    }
+
+    /**
+     * Returns true if the given HTTP header contains the given value.
+     *
+     * @param string $key   The HTTP header name
+     * @param string $value The HTTP value
+     *
+     * @return bool true if the value is contained in the header, false otherwise
+     */
+    public function contains($key, $value)
+    {
+        return in_array($value, $this->get($key, null, false));
+    }
+
+    /**
+     * Removes a header.
+     *
+     * @param string $key The HTTP header name
+     */
+    public function remove($key)
+    {
+        $key = str_replace('_', '-', strtolower($key));
+
+        unset($this->headers[$key]);
+
+        if ('cache-control' === $key) {
+            $this->cacheControl = array();
+        }
+    }
+
+    /**
+     * Returns the HTTP header value converted to a date.
+     *
+     * @param string    $key     The parameter key
+     * @param \DateTime $default The default value
+     *
+     * @return null|\DateTime The parsed DateTime or the default value if the header does not exist
+     *
+     * @throws \RuntimeException When the HTTP header is not parseable
+     */
+    public function getDate($key, /*\DateTime*/ $default = null)
+    {
+        if (null === $value = $this->get($key)) {
+            return $default;
+        }
+
+        if (false === $date = \DateTime::createFromFormat(DATE_RFC2822, $value)) {
+            throw new \RuntimeException(sprintf('The %s HTTP header is not parseable (%s).', $key, $value));
+        }
+
+        return $date;
+    }
+
+    /**
+     * Adds a custom Cache-Control directive.
+     *
+     * @param string $key   The Cache-Control directive name
+     * @param mixed  $value The Cache-Control directive value
+     */
+    public function addCacheControlDirective($key, $value = true)
+    {
+        $this->cacheControl[$key] = $value;
+
+        $this->set('Cache-Control', $this->getCacheControlHeader());
+    }
+
+    /**
+     * Returns true if the Cache-Control directive is defined.
+     *
+     * @param string $key The Cache-Control directive
+     *
+     * @return bool true if the directive exists, false otherwise
+     */
+    public function hasCacheControlDirective($key)
+    {
+        return array_key_exists($key, $this->cacheControl);
+    }
+
+    /**
+     * Returns a Cache-Control directive value by name.
+     *
+     * @param string $key The directive name
+     *
+     * @return mixed|null The directive value if defined, null otherwise
+     */
+    public function getCacheControlDirective($key)
+    {
+        return array_key_exists($key, $this->cacheControl) ? $this->cacheControl[$key] : null;
+    }
+
+    /**
+     * Removes a Cache-Control directive.
+     *
+     * @param string $key The Cache-Control directive
+     */
+    public function removeCacheControlDirective($key)
+    {
+        unset($this->cacheControl[$key]);
+
+        $this->set('Cache-Control', $this->getCacheControlHeader());
+    }
+
+    /**
+     * Returns an iterator for headers.
+     *
+     * @return \ArrayIterator An \ArrayIterator instance
+     */
+    public function getIterator()
+    {
+        return new \ArrayIterator($this->headers);
+    }
+
+    /**
+     * Returns the number of headers.
+     *
+     * @return int The number of headers
+     */
+    public function count()
+    {
+        return count($this->headers);
+    }
+
+    protected function getCacheControlHeader()
+    {
+        $parts = array();
+        ksort($this->cacheControl);
+        foreach ($this->cacheControl as $key => $value) {
+            if (true === $value) {
+                $parts[] = $key;
+            } else {
+                if (preg_match('#[^a-zA-Z0-9._-]#', $value)) {
+                    $value = '"'.$value.'"';
+                }
+
+                $parts[] = "$key=$value";
+            }
+        }
+
+        return implode(', ', $parts);
+    }
+
+    /**
+     * Parses a Cache-Control HTTP header.
+     *
+     * @param string $header The value of the Cache-Control HTTP header
+     *
+     * @return array An array representing the attribute values
+     */
+    protected function parseCacheControl($header)
+    {
+        $cacheControl = array();
+        preg_match_all('#([a-zA-Z][a-zA-Z_-]*)\s*(?:=(?:"([^"]*)"|([^ \t",;]*)))?#', $header, $matches, PREG_SET_ORDER);
+        foreach ($matches as $match) {
+            $cacheControl[strtolower($match[1])] = isset($match[3]) ? $match[3] : (isset($match[2]) ? $match[2] : true);
+        }
+
+        return $cacheControl;
+    }
+}
+
+
+/*
+ * This file is part of the Symfony package.
+ *
+ * (c) Fabien Potencier <fabien@symfony.com>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+//namespace Symfony\Component\HttpFoundation;
+
+/**
+ * ResponseHeaderBag is a container for Response HTTP headers.
+ *
+ * @author Fabien Potencier <fabien@symfony.com>
+ */
+class HttpResponseHeaderBag extends HttpHeaderBag
+{
+    const COOKIES_FLAT = 'flat';
+    const COOKIES_ARRAY = 'array';
+
+    const DISPOSITION_ATTACHMENT = 'attachment';
+    const DISPOSITION_INLINE = 'inline';
+
+    protected $computedCacheControl = array();
+    protected $cookies = array();
+    protected $headerNames = array();
+
+    public function __construct(/*array*/ $headers = array())
+    {
+        parent::__construct($headers);
+
+        if (!isset($this->headers['cache-control'])) {
+            $this->set('Cache-Control', '');
+        }
+
+        /* RFC2616 - 14.18 says all Responses need to have a Date */
+        if (!isset($this->headers['date'])) {
+            $this->initDate();
+        }
+    }
+
+    /**
+     * Returns the headers, with original capitalizations.
+     *
+     * @return array An array of headers
+     */
+    public function allPreserveCase()
+    {
+        $headers = array();
+        foreach ($this->all() as $name => $value) {
+            $headers[isset($this->headerNames[$name]) ? $this->headerNames[$name] : $name] = $value;
+        }
+
+        return $headers;
+    }
+
+    public function allPreserveCaseWithoutCookies()
+    {
+        $headers = $this->allPreserveCase();
+        if (isset($this->headerNames['set-cookie'])) {
+            unset($headers[$this->headerNames['set-cookie']]);
+        }
+
+        return $headers;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function replace(/*array*/ $headers = array())
+    {
+        $this->headerNames = array();
+
+        parent::replace($headers);
+
+        if (!isset($this->headers['cache-control'])) {
+            $this->set('Cache-Control', '');
+        }
+
+        if (!isset($this->headers['date'])) {
+            $this->initDate();
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function all()
+    {
+        $headers = parent::all();
+        foreach ($this->getCookies() as $cookie) {
+            $headers['set-cookie'][] = (string) $cookie;
+        }
+
+        return $headers;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function set($key, $values, $replace = true)
+    {
+        $uniqueKey = str_replace('_', '-', strtolower($key));
+
+        if ('set-cookie' === $uniqueKey) {
+            if ($replace) {
+                $this->cookies = array();
+            }
+            foreach ((array) $values as $cookie) {
+                $this->setCookie(HttpCookie::fromString($cookie));
+            }
+            $this->headerNames[$uniqueKey] = $key;
+
+            return;
+        }
+
+        $this->headerNames[$uniqueKey] = $key;
+
+        parent::set($key, $values, $replace);
+
+        // ensure the cache-control header has sensible defaults
+        if (\in_array($uniqueKey, array('cache-control', 'etag', 'last-modified', 'expires'), true)) {
+            $computed = $this->computeCacheControlValue();
+            $this->headers['cache-control'] = array($computed);
+            $this->headerNames['cache-control'] = 'Cache-Control';
+            $this->computedCacheControl = $this->parseCacheControl($computed);
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function remove($key)
+    {
+        $uniqueKey = str_replace('_', '-', strtolower($key));
+        unset($this->headerNames[$uniqueKey]);
+
+        if ('set-cookie' === $uniqueKey) {
+            $this->cookies = array();
+
+            return;
+        }
+
+        parent::remove($key);
+
+        if ('cache-control' === $uniqueKey) {
+            $this->computedCacheControl = array();
+        }
+
+        if ('date' === $uniqueKey) {
+            $this->initDate();
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function hasCacheControlDirective($key)
+    {
+        return array_key_exists($key, $this->computedCacheControl);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getCacheControlDirective($key)
+    {
+        return array_key_exists($key, $this->computedCacheControl) ? $this->computedCacheControl[$key] : null;
+    }
+
+    public function setCookie(/*HttpCookie*/ $cookie)
+    {
+        $this->cookies[$cookie->getDomain()][$cookie->getPath()][$cookie->getName()] = $cookie;
+        $this->headerNames['set-cookie'] = 'Set-HttpCookie';
+    }
+
+    /**
+     * Removes a cookie from the array, but does not unset it in the browser.
+     *
+     * @param string $name
+     * @param string $path
+     * @param string $domain
+     */
+    public function removeCookie($name, $path = '/', $domain = null)
+    {
+        if (null === $path) {
+            $path = '/';
+        }
+
+        unset($this->cookies[$domain][$path][$name]);
+
+        if (empty($this->cookies[$domain][$path])) {
+            unset($this->cookies[$domain][$path]);
+
+            if (empty($this->cookies[$domain])) {
+                unset($this->cookies[$domain]);
+            }
+        }
+
+        if (empty($this->cookies)) {
+            unset($this->headerNames['set-cookie']);
+        }
+    }
+
+    /**
+     * Returns an array with all cookies.
+     *
+     * @param string $format
+     *
+     * @return array
+     *
+     * @throws \InvalidArgumentException When the $format is invalid
+     */
+    public function getCookies($format = self::COOKIES_FLAT)
+    {
+        if (!in_array($format, array(self::COOKIES_FLAT, self::COOKIES_ARRAY))) {
+            throw new \InvalidArgumentException(sprintf('Format "%s" invalid (%s).', $format, implode(', ', array(self::COOKIES_FLAT, self::COOKIES_ARRAY))));
+        }
+
+        if (self::COOKIES_ARRAY === $format) {
+            return $this->cookies;
+        }
+
+        $flattenedCookies = array();
+        foreach ($this->cookies as $path) {
+            foreach ($path as $cookies) {
+                foreach ($cookies as $cookie) {
+                    $flattenedCookies[] = $cookie;
+                }
+            }
+        }
+
+        return $flattenedCookies;
+    }
+
+    /**
+     * Clears a cookie in the browser.
+     *
+     * @param string $name
+     * @param string $path
+     * @param string $domain
+     * @param bool   $secure
+     * @param bool   $httpOnly
+     */
+    public function clearCookie($name, $path = '/', $domain = null, $secure = false, $httpOnly = true)
+    {
+        $this->setCookie(new HttpCookie($name, null, 1, $path, $domain, $secure, $httpOnly));
+    }
+
+    /**
+     * Generates a HTTP Content-Disposition field-value.
+     *
+     * @param string $disposition      One of "inline" or "attachment"
+     * @param string $filename         A unicode string
+     * @param string $filenameFallback A string containing only ASCII characters that
+     *                                 is semantically equivalent to $filename. If the filename is already ASCII,
+     *                                 it can be omitted, or just copied from $filename
+     *
+     * @return string A string suitable for use as a Content-Disposition field-value
+     *
+     * @throws \InvalidArgumentException
+     *
+     * @see RFC 6266
+     */
+    public function makeDisposition($disposition, $filename, $filenameFallback = '')
+    {
+        if (!in_array($disposition, array(self::DISPOSITION_ATTACHMENT, self::DISPOSITION_INLINE))) {
+            throw new \InvalidArgumentException(sprintf('The disposition must be either "%s" or "%s".', self::DISPOSITION_ATTACHMENT, self::DISPOSITION_INLINE));
+        }
+
+        if ('' == $filenameFallback) {
+            $filenameFallback = $filename;
+        }
+
+        // filenameFallback is not ASCII.
+        if (!preg_match('/^[\x20-\x7e]*$/', $filenameFallback)) {
+            throw new \InvalidArgumentException('The filename fallback must only contain ASCII characters.');
+        }
+
+        // percent characters aren't safe in fallback.
+        if (false !== strpos($filenameFallback, '%')) {
+            throw new \InvalidArgumentException('The filename fallback cannot contain the "%" character.');
+        }
+
+        // path separators aren't allowed in either.
+        if (false !== strpos($filename, '/') || false !== strpos($filename, '\\') || false !== strpos($filenameFallback, '/') || false !== strpos($filenameFallback, '\\')) {
+            throw new \InvalidArgumentException('The filename and the fallback cannot contain the "/" and "\\" characters.');
+        }
+
+        $output = sprintf('%s; filename="%s"', $disposition, str_replace('"', '\\"', $filenameFallback));
+
+        if ($filename !== $filenameFallback) {
+            $output .= sprintf("; filename*=utf-8''%s", rawurlencode($filename));
+        }
+
+        return $output;
+    }
+
+    /**
+     * Returns the calculated value of the cache-control header.
+     *
+     * This considers several other headers and calculates or modifies the
+     * cache-control header to a sensible, conservative value.
+     *
+     * @return string
+     */
+    protected function computeCacheControlValue()
+    {
+        if (!$this->cacheControl && !$this->has('ETag') && !$this->has('Last-Modified') && !$this->has('Expires')) {
+            return 'no-cache, private';
+        }
+
+        if (!$this->cacheControl) {
+            // conservative by default
+            return 'private, must-revalidate';
+        }
+
+        $header = $this->getCacheControlHeader();
+        if (isset($this->cacheControl['public']) || isset($this->cacheControl['private'])) {
+            return $header;
+        }
+
+        // public if s-maxage is defined, private otherwise
+        if (!isset($this->cacheControl['s-maxage'])) {
+            return $header.', private';
+        }
+
+        return $header;
+    }
+
+    private function initDate()
+    {
+        $now = \DateTime::createFromFormat('U', time());
+        $now->setTimezone(new \DateTimeZone('UTC'));
+        $this->set('Date', $now->format('D, d M Y H:i:s').' GMT');
+    }
+}
+
 
 /*
  * This file is part of the Symfony package.
@@ -16,7 +976,7 @@
  *
  * @author Fabien Potencier <fabien@symfony.com>
  */
-class Response
+class HttpResponse
 {
     const HTTP_CONTINUE = 100;
     const HTTP_SWITCHING_PROTOCOLS = 101;
@@ -82,7 +1042,7 @@ class Response
     const HTTP_NETWORK_AUTHENTICATION_REQUIRED = 511;                             // RFC6585
 
     /**
-     * @var \Symfony\Component\HttpFoundation\ResponseHeaderBag
+     * @var \Symfony\Component\HttpFoundation\HttpResponseHeaderBag
      */
     public $headers;
 
@@ -200,7 +1160,7 @@ class Response
      */
     public function __construct($content = '', /*int*/ $status = 200, /*array*/ $headers = array())
     {
-        $this->headers = new ResponseHeaderBag($headers);
+        $this->headers = new HttpResponseHeaderBag($headers);
         $this->setContent($content);
         $this->setStatusCode($status);
         $this->setProtocolVersion('1.0');
@@ -214,7 +1174,7 @@ class Response
      *
      * Example:
      *
-     *     return Response::create($body, 200)
+     *     return HttpResponse::create($body, 200)
      *         ->setSharedMaxAge(300);
      *
      * @param mixed $content The response content, see setContent()
@@ -229,13 +1189,13 @@ class Response
     }
 
     /**
-     * Returns the Response as an HTTP string.
+     * Returns the HttpResponse as an HTTP string.
      *
-     * The string representation of the Response is the same as the
+     * The string representation of the HttpResponse is the same as the
      * one that will be sent to the client only if the prepare() method
      * has been called before.
      *
-     * @return string The Response as an HTTP string
+     * @return string The HttpResponse as an HTTP string
      *
      * @see prepare()
      */
@@ -248,7 +1208,7 @@ class Response
     }
 
     /**
-     * Clones the current Response instance.
+     * Clones the current HttpResponse instance.
      */
     public function __clone()
     {
@@ -256,11 +1216,11 @@ class Response
     }
 
     /**
-     * Prepares the Response before it is sent to the client.
+     * Prepares the HttpResponse before it is sent to the client.
      *
-     * This method tweaks the Response to ensure that it is
+     * This method tweaks the HttpResponse to ensure that it is
      * compliant with RFC 2616. Most of the changes are based on
-     * the Request that is "associated" with this Response.
+     * the Request that is "associated" with this HttpResponse.
      *
      * @return $this
      */
@@ -372,7 +1332,7 @@ class Response
             $charset = $this->charset ? $this->charset : 'UTF-8';
             if (!$headers->has('Content-Type')) {
                 $headers->set('Content-Type', 'text/html; charset='.$charset);
-                // adapted from CakePHP, Http\Response class
+                // adapted from CakePHP, Http\HttpResponse class
             } elseif ((0 === stripos($headers->get('Content-Type'), 'text/') || in_array(strtolower($headers->get('Content-Type')), array('application/javascript', 'application/json', 'application/xml', 'application/rss+xml'))) && false === stripos($headers->get('Content-Type'), 'charset')) {
                 // add the charset
                 $headers->set('Content-Type', $headers->get('Content-Type').'; charset='.$charset);
@@ -536,7 +1496,7 @@ class Response
     public function setContent($content)
     {
         if (null !== $content && !is_string($content) && !is_numeric($content) && !is_callable(array($content, '__toString'))) {
-            throw new \UnexpectedValueException(sprintf('The Response content must be a string or object implementing __toString(), "%s" given.', gettype($content)));
+            throw new \UnexpectedValueException(sprintf('The HttpResponse content must be a string or object implementing __toString(), "%s" given.', gettype($content)));
         }
 
         $this->content = (string) $content;
@@ -619,7 +1579,7 @@ class Response
 		/**
      * Sets the Content-Disposition header with the given filename.
      *
-     * @param string $disposition      ResponseHeaderBag::DISPOSITION_INLINE or ResponseHeaderBag::DISPOSITION_ATTACHMENT
+     * @param string $disposition      HttpResponseHeaderBag::DISPOSITION_INLINE or HttpResponseHeaderBag::DISPOSITION_ATTACHMENT
      * @param string $filename         Optionally use this UTF-8 encoded filename instead of the real name of the file
      * @param string $filenameFallback A fallback filename, containing only ASCII characters. Defaults to an automatically encoded filename
      *
@@ -1230,7 +2190,7 @@ class Response
     public function setCache(/*array*/ $options)
     {
         if ($diff = array_diff(array_keys($options), array('etag', 'last_modified', 'max_age', 's_maxage', 'private', 'public', 'immutable'))) {
-            throw new \InvalidArgumentException(sprintf('Response does not support the following options: "%s".', implode('", "', array_values($diff))));
+            throw new \InvalidArgumentException(sprintf('HttpResponse does not support the following options: "%s".', implode('", "', array_values($diff))));
         }
 
         if (isset($options['etag'])) {
@@ -1344,13 +2304,13 @@ class Response
     }
 
     /**
-     * Determines if the Response validators (ETag, Last-Modified) match
+     * Determines if the HttpResponse validators (ETag, Last-Modified) match
      * a conditional value specified in the Request.
      *
-     * If the Response is not modified, it sets the status code to 304 and
+     * If the HttpResponse is not modified, it sets the status code to 304 and
      * removes the actual content by calling the setNotModified() method.
      *
-     * @return bool true if the Response validators match the Request, false otherwise
+     * @return bool true if the HttpResponse validators match the Request, false otherwise
      *
      * @final
      */

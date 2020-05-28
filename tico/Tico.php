@@ -1,7 +1,7 @@
 <?php
 /**
 *
-* Tico: tiny, dead-simple quasi-MVC web framework for PHP
+* Tiny, super-simple but versatile quasi-MVC web framework for PHP
 * @version 1.0.0
 * https://github.com/foo123/tico
 *
@@ -19,14 +19,15 @@ class Tico
     public $BaseUrl = '';
     public $BasePath = '';
 
+    protected $tplCallStack = array();
     public $LanguagePluralForm = array();
     public $Language = array();
     public $Locale = null;
 
     public function __construct( $baseUrl='', $basePath='' )
     {
-        $this->BaseUrl = $baseUrl;
-        $this->BasePath = $basePath;
+        $this->BaseUrl = rtrim($baseUrl, '/');
+        $this->BasePath = rtrim($basePath, '/\\');
     }
 
     protected function _fixServerVars( )
@@ -100,26 +101,15 @@ class Tico
     public function response( )
     {
         if ( $this->Response ) return $this->Response;
-        if ( !class_exists('Response', false) )
-        {
-            include( TICO.'/HeaderBag.php' );
-            include( TICO.'/ResponseHeaderBag.php' );
-            include( TICO.'/Cookie.php' );
-            include( TICO.'/Response.php' );
-        }
-        $this->Response = new Response( );
+        if ( !class_exists('HttpResponse', false) ) include( TICO.'/HttpResponse.php' );
+        $this->Response = new HttpResponse( );
         return $this->Response;
     }
 
-    public function tpl( $_______TPL________, $_______DATA________=array() )
+    public function tpl( $tpl, $data=array() )
     {
-        if ( !$_______TPL________ ) return '';
-
-        $_______DATA________ = (array)$_______DATA________;
-        extract($_______DATA________, EXTR_SKIP);
-        ob_start();
-        @include($_______TPL________);
-        return ob_get_clean();
+        if ( !class_exists('InTpl', false) ) include(TICO.'/InTpl.php');
+        return InTpl::Tpl($tpl)->render($data);
     }
 
     public function output( $data, $type='html', $headers=array() )
@@ -231,9 +221,14 @@ class Tico
         return $this->loader()->assets( $type );
     }
 
+    public function path( )
+    {
+        return $this->BasePath . DIRECTORY_SEPARATOR . ltrim(implode('', func_get_args( )), '/\\');
+    }
+
     public function uri( )
     {
-        return $this->loader()->path_url( implode( '', func_get_args( ) ) );
+        return $this->BaseUrl . '/' . ltrim(implode('', func_get_args( )), '/');
     }
 
     public function route( $route, $params=array(), $strict=false )
