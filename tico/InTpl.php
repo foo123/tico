@@ -12,10 +12,10 @@ class InTpl
 {
     const VERSION = '1.0.0';
 
+    protected $_super = null;
+    protected $_sprout = null;
     protected $_blocks = null;
     public $blocks = null;
-    public $super = null;
-    protected $supout = '';
     public $tpl = null;
     public $data = null;
 
@@ -27,19 +27,29 @@ class InTpl
     public function __construct( $tpl)
     {
         $this->tpl = $tpl;
-        $this->super = null;
+        $this->_super = null;
+        $this->_sprout = null;
         $this->_blocks = array();
         $this->blocks = array();
         $this->data = array();
     }
 
+    public function super( )
+    {
+        if ( $this->_super && (null === $this->_sprout) )
+        {
+            // need to parse/render super tpl here early
+            // in order to have access to $this->super()->block(..) calls
+            // anyway to minimise double parsing/rendering of super tpl??
+            $this->_sprout = $this->_super->render( $this->data );
+        }
+        return $this->_super;
+    }
+
     public function extend( $super )
     {
-        $this->super = InTpl::Tpl( $super );
-        // need to parse/render super tpl here early
-        // in order to have access to $this->super->block(..) calls
-        // anyway to minimise double parsing/rendering of super tpl??
-        $this->supout = $this->super->render( $this->data );
+        $this->_super = InTpl::Tpl( $super );
+        $this->_sprout = null;
         return $this;
     }
 
@@ -63,27 +73,28 @@ class InTpl
         return $this;
     }
 
-    public function render( $_______DATA________=array() )
+    public function render( $data=array() )
     {
         if ( empty($this->tpl) ) return '';
 
-        $this->data = (array)$_______DATA________;
+        $this->data = (array)$data;
         extract($this->data, EXTR_SKIP);
 
         ob_start();
         @include($this->tpl);
         $output = ob_get_clean();
 
-        if ( $this->super )
+        if ( $this->_super )
         {
-            if ( empty($this->_blocks) && empty($this->blocks) )
+            if ( (null != $this->_sprout)
+                && empty($this->_blocks) && empty($this->blocks) )
             {
-                return $this->supout;
+                return $this->_sprout;
             }
             else
             {
-                $this->super->blocks = array_merge($this->_blocks, $this->blocks);
-                return $this->super->render( $this->data );
+                $this->_super->blocks = array_merge($this->_blocks, $this->blocks);
+                return $this->_super->render( $this->data );
             }
         }
         else
