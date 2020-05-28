@@ -2,12 +2,12 @@
 /**
 *
 * Tico: tiny, dead-simple quasi-MVC web framework for PHP
+* @version 1.0.0
 * https://github.com/foo123/tico
 *
 */
 
 if ( !defined('TICO') ) define('TICO', dirname(__FILE__));
-
 class Tico
 {
     const VERSION = '1.0.0';
@@ -122,39 +122,42 @@ class Tico
         return ob_get_clean();
     }
 
-    public function output( $data, $type="", $headers=array() )
+    public function output( $data, $type='html', $headers=array() )
     {
-        $type = empty($type) ? "text" : $type;
+        $type = empty($type) ? 'html' : $type;
         switch( $type )
         {
-            case "pre":
-                if (!$this->response()->headers->has('Content-Type'))
-                {
-                    $this->response()->headers->set('Content-Type', 'text/html');
-                }
+            case 'pre':
                 if ( is_array($data) || is_object($data) ) $data = print_r($data, true);
                 $data = '<pre>' . str_replace(array('&','<','>'), array('&amp;','&lt;','&gt;'), (string)$data) . '</pre>';
                 // no break
 
-            case "text":
-                if (!$this->response()->headers->has('Content-Type'))
+            case 'html':
+                if ( !$this->response()->headers->has('Content-Type') )
+                {
+                    $this->response()->headers->set('Content-Type', 'text/html');
+                }
+                // no break
+
+            case 'text':
+                if ( !$this->response()->headers->has('Content-Type') )
                 {
                     $this->response()->headers->set('Content-Type', 'text/plain');
                 }
                 $this->response()->setContent((string)$data);
                 break;
 
-            case "json":
-                if (!$this->response()->headers->has('Content-Type'))
+            case 'json':
+                if ( !$this->response()->headers->has('Content-Type') )
                 {
                     $this->response()->headers->set('Content-Type', 'application/json');
                 }
-                $this->response()->setContent(false === $data ? "false" : json_encode( $data ));
+                $this->response()->setContent(false === $data ? 'false' : json_encode( $data ));
                 break;
 
-            case "file":
+            case 'file':
                 $file = $data;
-                if (!$this->response()->headers->has('Content-Type'))
+                if ( !$this->response()->headers->has('Content-Type') )
                 {
                     $file_type = mime_content_type( $file );
                     if ( empty($file_type) ) $file_type = 'application/octet-stream';
@@ -164,13 +167,13 @@ class Tico
                 $this->response()->setFile($file);
                 if ( $headers && isset($headers['deleteFileAfterSend']) )
                 {
-                    $this->response->deleteFileAfterSend($headers['deleteFileAfterSend']);
+                    $this->response()->deleteFileAfterSend($headers['deleteFileAfterSend']);
                     unset($headers['deleteFileAfterSend']);
                 }
                 break;
 
             default:
-                if (!$this->response()->headers->has('Content-Type'))
+                if ( !$this->response()->headers->has('Content-Type') )
                 {
                     $this->response()->headers->set('Content-Type', 'text/html');
                 }
@@ -231,6 +234,11 @@ class Tico
     public function uri( )
     {
         return $this->loader()->path_url( implode( '', func_get_args( ) ) );
+    }
+
+    public function route( $route, $params=array(), $strict=false )
+    {
+        return $this->uri($this->router()->make($route, $params, $strict));
     }
 
     public function locale( $l, $lang )
@@ -362,16 +370,38 @@ class Tico
             {
                 $route = array(
                     'route'     => $route,
+                    'name'      => $route,
                     'method'    => '*', // optional, * = any
                     'defaults'  => array()
                 );
             }
+            $route = (array)$route;
+            if ( empty($route['name']) )
+                $route['name'] = $route['route'];
+            if ( !is_callable($handler) && isset($route['handler']) && is_callable($route['handler']) )
+                $handler = $route['handler'];
             $route['handler'] = function($route) use($handler) {
                 return call_user_func($handler, $route['data']);
             };
             $this->router( )->on( $route );
         }
         return $this;
+    }
+
+    public function get( $route, $handler )
+    {
+        return $this->on(array(
+            'route' => $route,
+            'method' => 'get'
+        ), $handler);
+    }
+
+    public function post( $route, $handler )
+    {
+        return $this->on(array(
+            'route' => $route,
+            'method' => 'post'
+        ), $handler);
     }
 
     public function serve( )
@@ -384,6 +414,9 @@ class Tico
 function tico( $baseUrl='', $basePath='' )
 {
     static $app = null;
-    if ( !$app ) $app = new Tico($baseUrl, $basePath);
+    if ( !$app )
+    {
+        $app = new Tico($baseUrl, $basePath);
+    }
     return $app;
 }
