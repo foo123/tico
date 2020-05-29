@@ -19,7 +19,6 @@ class Tico
     public $BaseUrl = '';
     public $BasePath = '';
 
-    protected $tplCallStack = array();
     public $LanguagePluralForm = array();
     public $Language = array();
     public $Locale = null;
@@ -94,14 +93,14 @@ class Tico
     {
         if ( $this->Router ) return $this->Router;
         if ( !class_exists('Dromeo', false) ) include( TICO.'/Dromeo.php' );
-        $this->Router = new Dromeo( /*$this->BaseUrl*/ );
+        $this->Router = new Dromeo( );
         return $this->Router;
     }
 
     public function response( )
     {
         if ( $this->Response ) return $this->Response;
-        if ( !class_exists('HttpResponse', false) ) include( TICO.'/HttpResponse.php' );
+        if ( !class_exists('HttpResponse', false) ) include( TICO.'/HttpFoundation.php' );
         $this->Response = new HttpResponse( );
         return $this->Response;
     }
@@ -322,7 +321,7 @@ class Tico
     {
         $request_uri = isset($_SERVER['REQUEST_URI']) ? strtok(strtok($_SERVER["REQUEST_URI"],'?'), '#') : '';
 
-        if ( $strip && false !== ($p=strpos($this->BaseUrl, '/')) )
+        if ( $strip && false !== ($p=strpos(str_replace('://', ':%%', $this->BaseUrl), '/')) )
         {
             $base_uri = substr($this->BaseUrl, $p);
             if ( 0 === strpos($request_uri, $base_uri) )
@@ -351,27 +350,21 @@ class Tico
         return $method;
     }
 
-    public function on( $route, $handler )
+    public function on( $method, $route, $handler=null )
     {
-        if ( false === $route )
+        if ( false === $method )
         {
+            $handler = $route;
             $this->router( )->fallback(function($route) use($handler) {
                 return call_user_func($handler, false);
             });
         }
         else
         {
-            if ( is_string($route) )
-            {
-                $route = array(
-                    'route'     => $route,
-                    'name'      => $route,
-                    'method'    => '*', // optional, * = any
-                    'defaults'  => array()
-                );
-            }
+            if ( is_string($route) ) $route = array('route' => $route);
             $route = (array)$route;
-            if ( empty($route['name']) )
+            $route['method'] = $method;
+            if ( !isset($route['name']) )
                 $route['name'] = $route['route'];
             if ( !is_callable($handler) && isset($route['handler']) && is_callable($route['handler']) )
                 $handler = $route['handler'];
@@ -381,22 +374,6 @@ class Tico
             $this->router( )->on( $route );
         }
         return $this;
-    }
-
-    public function get( $route, $handler )
-    {
-        return $this->on(array(
-            'route' => $route,
-            'method' => 'get'
-        ), $handler);
-    }
-
-    public function post( $route, $handler )
-    {
-        return $this->on(array(
-            'route' => $route,
-            'method' => 'post'
-        ), $handler);
     }
 
     public function serve( )
@@ -409,9 +386,6 @@ class Tico
 function tico( $baseUrl='', $basePath='' )
 {
     static $app = null;
-    if ( !$app )
-    {
-        $app = new Tico($baseUrl, $basePath);
-    }
+    if ( !$app ) $app = new Tico($baseUrl, $basePath);
     return $app;
 }

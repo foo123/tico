@@ -8,31 +8,29 @@ Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.0.0)
 1. [`Importer`](https://github.com/foo123/Importer) class &amp; asset dependency loader
 2. [`Dromeo`](https://github.com/foo123/Dromeo) versatile pattern router
 3. [`InTpl`](https://github.com/foo123/InTpl) simple php templates w/ inheritance
-4. `HttpResponse` adapted from **Symfony's HttpFoundation component**
+4. `HttpFoundation` adapted from **Symfony's HttpFoundation component**
 
 
 **demo**
 
 ```php
-<?php
-
 define('ROOT', dirname(__FILE__));
 define('VIEWS', ROOT . '/views');
 
 include(ROOT.'/../tico/Tico.php');
 
 tico('http://localhost:8000', ROOT)
-    ->on('{/:?}', function(){
+    ->on('*', '{/:?}', function(){
 
         tico()->output(array('title'=>'Demo Index'), VIEWS.'/index.tpl.php');
 
     })
-    ->on('/hello/{:msg}', function($params){
+    ->on(array('get', 'post'), '/hello/{:msg}', function($params){
 
         tico()->output(array('title'=>'Hello!', 'msg'=>$params['msg']), VIEWS.'/hello.tpl.php');
 
     })
-    ->on('/json/api', function(){
+    ->on('*', '/json/api', function(){
 
         tico()->output(array(
             'param1' => '123',
@@ -41,9 +39,9 @@ tico('http://localhost:8000', ROOT)
         ), 'json');
 
     })
-    ->on('/redirect', function(){
+    ->on('*', '/redirect', function(){
 
-        tico()->redirect(tico()->uri('/'));
+        tico()->redirect(tico()->uri('/'), 302);
 
     })
     ->on(false, function(){
@@ -53,6 +51,4 @@ tico('http://localhost:8000', ROOT)
     })
     ->serve()
 ;
-
-exit;
 ```
