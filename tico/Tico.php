@@ -222,12 +222,14 @@ class Tico
 
     public function path( )
     {
-        return $this->BasePath . DIRECTORY_SEPARATOR . ltrim(implode('', func_get_args( )), '/\\');
+        $path = ltrim(implode('', func_get_args( )), '/\\');
+        return $this->BasePath . (strlen($path) ? (DIRECTORY_SEPARATOR . $path) : '');
     }
 
     public function uri( )
     {
-        return $this->BaseUrl . '/' . ltrim(implode('', func_get_args( )), '/');
+        $uri = ltrim(implode('', func_get_args( )), '/');
+        return $this->BaseUrl . (strlen($uri) ? ('/' . $uri) : '');
     }
 
     public function route( $route, $params=array(), $strict=false )
@@ -325,13 +327,14 @@ class Tico
         {
             $base_uri = substr($this->BaseUrl, $p);
             if ( 0 === strpos($request_uri, $base_uri) )
-            {
                 $request_uri = substr($request_uri, strlen($base_uri));
-            }
         }
         // remove trailing slash
         if ( '/' === substr($request_uri, -1) )
             $request_uri = substr($request_uri, 0, -1);
+        // make sure root is / (and not empty string)
+        if ( '' === $request_uri )
+            $request_uri = '/';
 
         return $request_uri;
     }

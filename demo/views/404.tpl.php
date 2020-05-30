@@ -1,4 +1,4 @@
-<?php $this->extend(VIEWS.'/layout/base.tpl.php'); ?>
+<?php $this->extend(tico()->path('/views/layout/base.tpl.php')); ?>
 
 <?php $this->start('title'); ?>404 Not Found!<?php $this->end('title'); ?>
 
