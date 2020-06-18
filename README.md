@@ -16,6 +16,14 @@ Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.0.0)
 ```php
 include(dirname(__FILE__).'/../tico/Tico.php');
 
+class MyModel
+{
+    public function getMsg()
+    {
+        return "Hello";
+    }
+}
+
 tico('http://localhost:8000', dirname(__FILE__))
     ->locale([
 
@@ -23,6 +31,7 @@ tico('http://localhost:8000', dirname(__FILE__))
         //.. more localised strings ..
 
     ], 'el')
+    ->set('model', new MyModel()) // simple dependency injection container
     ->on('*', '/', function( ) {
 
         tico()->output(

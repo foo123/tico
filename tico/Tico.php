@@ -23,6 +23,8 @@ class Tico
     public $Language = array();
     public $Locale = null;
 
+    public $Data = array();
+
     public function __construct( $baseUrl='', $basePath='' )
     {
         $this->BaseUrl = rtrim($baseUrl, '/');
@@ -79,6 +81,20 @@ class Tico
         // Fix empty PHP_SELF
         if ( empty( $_SERVER['PHP_SELF'] ) )
             $_SERVER['PHP_SELF'] = preg_replace( '/(\?.*)?$/', '', $_SERVER["REQUEST_URI"] );
+    }
+
+    public function get( $key )
+    {
+        $key = (string)$key;
+        if ( !isset($this->Data[$key]) )
+            throw new InvalidArgumentException('"'.$key.'" is not set!');
+        return $this->Data[$key];
+    }
+
+    public function set( $key, $val )
+    {
+        $this->Data[(string)$key] = $val;
+        return $this;
     }
 
     public function loader( )
