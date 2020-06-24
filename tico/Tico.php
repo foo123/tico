@@ -308,7 +308,7 @@ class Tico
         {
             $query = !empty($_SERVER['QUERY_STRING']) ? '?'.$_SERVER['QUERY_STRING'] : '';
             $pageURL = ($this->isSsl() ? 'https' : 'http') . '://';
-            if ( '80' != $_SERVER["SERVER_PORT"] )
+            if ( ('80' != $_SERVER["SERVER_PORT"]) && !($this->isSsl() && '443' == $_SERVER["SERVER_PORT"]) )
             {
                 $pageURL .= $_SERVER["SERVER_NAME"].":".$_SERVER["SERVER_PORT"].$_SERVER["REQUEST_URI"];
             }
