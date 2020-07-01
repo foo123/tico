@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.0.0
+* @version 1.1.0
 * https://github.com/foo123/tico
 *
 */
@@ -10,7 +10,7 @@
 if ( !defined('TICO') ) define('TICO', dirname(__FILE__));
 class Tico
 {
-    const VERSION = '1.0.0';
+    const VERSION = '1.1.0';
 
     public $Loader = null;
     public $Router = null;
@@ -24,11 +24,13 @@ class Tico
     public $Locale = null;
 
     public $Data = array();
+    public $Middleware = null;
 
     public function __construct( $baseUrl='', $basePath='' )
     {
         $this->BaseUrl = rtrim($baseUrl, '/');
         $this->BasePath = rtrim($basePath, '/\\');
+        $this->Middleware = (object)array('before'=>array(), 'after'=>array());
     }
 
     protected function _fixServerVars( )
@@ -189,15 +191,16 @@ class Tico
         {
             foreach ((array)$headers as $key=>$value)
             {
-                if ( 'charset' === strtolower($key) )
+                $keyl = strtolower($key);
+                if ( 'charset' === $keyl )
                 {
                     $this->response()->setCharset($value);
                 }
-                elseif ( 'statuscode' === strtolower($key) )
+                elseif ( 'statuscode' === $keyl )
                 {
                     $this->response()->setStatusCode((int)$value);
                 }
-                elseif ( 'cache-control' === strtolower($key) )
+                elseif ( 'cache-control' === $keyl )
                 {
                     foreach((array)$value as $v)
                     {
@@ -335,7 +338,7 @@ class Tico
         return $withquery ? $current_url_qs : $current_url;
     }
 
-    public function requestPath( $strip=false )
+    public function requestPath( $strip=true )
     {
         $request_uri = isset($_SERVER['REQUEST_URI']) ? strtok(strtok($_SERVER["REQUEST_URI"],'?'), '#') : '';
 
@@ -369,6 +372,16 @@ class Tico
         return $method;
     }
 
+    public function middleware( $middleware, $type='before' )
+    {
+        if ( is_callable($middleware) )
+        {
+            $type = 'after' === strtolower((string)$type) ? 'after' : 'before';
+            $this->Middleware->{$type}[] = $middleware;
+        }
+        return $this;
+    }
+
     public function on( $method, $route, $handler=null )
     {
         if ( false === $method )
@@ -398,7 +411,36 @@ class Tico
     public function serve( )
     {
         $this->_fixServerVars( );
-        $this->router( )->route( $this->requestPath( true ), $this->requestMethod( ) );
+
+        $passed = true;
+
+        if ( !empty($this->Middleware->before) )
+        {
+            $passed = false;
+            $next1 = function( ) use (&$next1, &$passed) {
+                static $i = -1;
+                $i++;
+                if ( $i >= count($this->Middleware->before) ) $passed = true;
+                else call_user_func($this->Middleware->before[$i], $next1);
+            };
+            call_user_func($next1);
+        }
+
+        if ( $passed )
+        {
+            $this->router( )->route( $this->requestPath( true ), $this->requestMethod( ) );
+        }
+
+        if ( !empty($this->Middleware->after) )
+        {
+            $next2 = function( ) use (&$next2) {
+                static $i = -1;
+                $i++;
+                if ( $i < count($this->Middleware->after) ) call_user_func($this->Middleware->after[$i], $next2);
+            };
+            call_user_func($next2);
+        }
+
         $this->response( )->send( );
     }
 }
