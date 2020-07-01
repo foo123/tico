@@ -1,6 +1,6 @@
 # tico
 
-Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.0.0)
+Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.1.0)
 
 
 **Uses:**
@@ -14,7 +14,8 @@ Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.0.0)
 **demo** (see `/demo/index.php`)
 
 ```php
-include(dirname(__FILE__).'/../tico/Tico.php');
+define('ROOT', dirname(__FILE__));
+include(ROOT.'/../tico/Tico.php');
 
 class MyModel
 {
@@ -24,37 +25,53 @@ class MyModel
     }
 }
 
-tico('http://localhost:8000', dirname(__FILE__))
-    ->locale([
-
-        'Hello!' => 'Γεια σας!'
-        //.. more localised strings ..
-
-    ], 'el')
+tico('http://localhost:8000', ROOT)
     ->set('model', new MyModel()) // simple dependency injection container
+    ->middleware(function( $next ) {
+
+        // eg check if user is authenticated,
+        // for example check user cookie and set user var appropriately
+        tico()->set('user', isset($_COOKIE['user']) ? $_COOKIE['user'] : 'guest');
+        $next();
+
+    })
+    ->middleware(function( $next ) {
+
+        // if this condition is met, abort current request, eg user is not authenticated
+        if ( ('guest'==tico()->get('user')) && ('/hello/foo'==tico()->requestPath()) )
+            //tico()->redirect(tico()->uri('/hello/bar'), 302);
+            tico()->output(
+                array('title' => 'Hello!', 'msg' => 'guest'),
+                tico()->path('/views/hello.tpl.php')
+            );
+        // else pass along
+        else
+            $next();
+
+    })
     ->on('*', '/', function( ) {
 
         tico()->output(
-            ['title' => 'Demo Index'],
+            array('title' => 'Demo Index'),
             tico()->path('/views/index.tpl.php')
         );
 
     })
-    ->on(['get', 'post'], '/hello/{:msg}', function( $params ) {
+    ->on(array('get', 'post'), '/hello/{:msg}', function( $params ) {
 
         tico()->output(
-            ['title' => tico()->l('Hello!'), 'msg' => $params['msg']],
+            array('title' => 'Hello!', 'msg' => $params['msg']),
             tico()->path('/views/hello.tpl.php')
         );
 
     })
     ->on('*', '/json/api', function( ) {
 
-        tico()->output([
+        tico()->output(array(
             'param1' => '123',
             'param2' => '456',
             'param3' => '789'
-        ], 'json');
+        ), 'json');
 
     })
     ->on('*', '/redirect', function( ) {
@@ -65,12 +82,21 @@ tico('http://localhost:8000', dirname(__FILE__))
     ->on(false, function( ) {
 
         tico()->output(
-            [],
+            array(),
             tico()->path('/views/404.tpl.php'),
             array('StatusCode' => 404)
         );
 
     })
+    ->middleware(function( $next ) {
+
+        // post process, eg create cache files from response
+        if ( (200 == tico()->response()->getStatusCode()) && !tico()->response()->getFile() && !tico()->response()->getCallback() )
+        {
+            tico()->response()->setContent(tico()->response()->getContent().'<!-- post processed -->');
+        }
+
+    }, 'after')
     ->serve()
 ;
 ```

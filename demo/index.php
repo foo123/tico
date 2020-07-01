@@ -1,6 +1,7 @@
 <?php
 
-include(dirname(__FILE__).'/../tico/Tico.php');
+define('ROOT', dirname(__FILE__));
+include(ROOT.'/../tico/Tico.php');
 
 class MyModel
 {
@@ -10,8 +11,30 @@ class MyModel
     }
 }
 
-tico('http://localhost:8000', dirname(__FILE__))
+tico('http://localhost:8000', ROOT)
     ->set('model', new MyModel()) // simple dependency injection container
+    ->middleware(function( $next ) {
+
+        // eg check if user is authenticated,
+        // for example check user cookie and set user var appropriately
+        tico()->set('user', isset($_COOKIE['user']) ? $_COOKIE['user'] : 'guest');
+        $next();
+
+    })
+    ->middleware(function( $next ) {
+
+        // if this condition is met, abort current request, eg user is not authenticated
+        if ( ('guest'==tico()->get('user')) && ('/hello/foo'==tico()->requestPath()) )
+            //tico()->redirect(tico()->uri('/hello/bar'), 302);
+            tico()->output(
+                array('title' => 'Hello!', 'msg' => 'guest'),
+                tico()->path('/views/hello.tpl.php')
+            );
+        // else pass along
+        else
+            $next();
+
+    })
     ->on('*', '/', function( ) {
 
         tico()->output(
@@ -51,6 +74,15 @@ tico('http://localhost:8000', dirname(__FILE__))
         );
 
     })
+    ->middleware(function( $next ) {
+
+        // post process, eg create cache files from response
+        if ( (200 == tico()->response()->getStatusCode()) && !tico()->response()->getFile() && !tico()->response()->getCallback() )
+        {
+            tico()->response()->setContent(tico()->response()->getContent().'<!-- post processed -->');
+        }
+
+    }, 'after')
     ->serve()
 ;
 
