@@ -1,6 +1,6 @@
 # tico
 
-Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.1.0)
+Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.5.0)
 
 
 **Uses:**
@@ -31,7 +31,7 @@ tico('http://localhost:8000', ROOT)
 
         // eg check if user is authenticated,
         // for example check user cookie and set user var appropriately
-        tico()->set('user', isset($_COOKIE['user']) ? $_COOKIE['user'] : 'guest');
+        tico()->set('user', tico()->request()->cookies->get('user', 'guest'));
         $next();
 
     })
@@ -91,7 +91,7 @@ tico('http://localhost:8000', ROOT)
     ->middleware(function( $next ) {
 
         // post process, eg create cache files from response
-        if ( (200 == tico()->response()->getStatusCode()) && !tico()->response()->getFile() && !tico()->response()->getCallback() )
+        if ( (200 == tico()->response()->getStatusCode()) && 'text/html'==tico()->response()->headers->get('Content-Type') && !tico()->response()->getFile() && !tico()->response()->getCallback() )
         {
             tico()->response()->setContent(tico()->response()->getContent().'<!-- post processed -->');
         }

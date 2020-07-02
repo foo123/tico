@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.1.0
+* @version 1.5.0
 * https://github.com/foo123/tico
 *
 */
@@ -10,10 +10,11 @@
 if ( !defined('TICO') ) define('TICO', dirname(__FILE__));
 class Tico
 {
-    const VERSION = '1.1.0';
+    const VERSION = '1.5.0';
 
     public $Loader = null;
     public $Router = null;
+    public $Request = null;
     public $Response = null;
 
     public $BaseUrl = '';
@@ -113,6 +114,14 @@ class Tico
         if ( !class_exists('Dromeo', false) ) include( TICO.'/Dromeo.php' );
         $this->Router = new Dromeo( );
         return $this->Router;
+    }
+
+    public function request( )
+    {
+        if ( $this->Request ) return $this->Request;
+        if ( !class_exists('HttpRequest', false) ) include( TICO.'/HttpFoundation.php' );
+        $this->Request = HttpRequest::createFromGlobals( );
+        return $this->Request;
     }
 
     public function response( )
@@ -300,7 +309,7 @@ class Tico
 
     public function isSsl()
     {
-        return (!empty($_SERVER['HTTPS']) && 'off' !== strtolower($_SERVER['HTTPS'])) || (isset($_SERVER['SERVER_PORT']) && ('443' == $_SERVER['SERVER_PORT'])) ? true : false;
+        return $this->request( )->isSecure( )/*(!empty($_SERVER['HTTPS']) && 'off' !== strtolower($_SERVER['HTTPS'])) || (isset($_SERVER['SERVER_PORT']) && ('443' == $_SERVER['SERVER_PORT'])) ? true : false*/;
     }
 
     public function currentUrl( $withquery=false )
@@ -309,7 +318,9 @@ class Tico
         static $current_url_qs = null;
         if ( null === $current_url )
         {
-            $query = !empty($_SERVER['QUERY_STRING']) ? '?'.$_SERVER['QUERY_STRING'] : '';
+            $current_url = $this->request( )->getUri( false );
+            $current_url_qs = $this->request( )->getUri( true );
+            /*$query = !empty($_SERVER['QUERY_STRING']) ? '?'.$_SERVER['QUERY_STRING'] : '';
             $pageURL = ($this->isSsl() ? 'https' : 'http') . '://';
             if ( ('80' != $_SERVER["SERVER_PORT"]) && !($this->isSsl() && '443' == $_SERVER["SERVER_PORT"]) )
             {
@@ -333,14 +344,14 @@ class Tico
             {
                 $current_url_qs = $pageURL;
                 $current_url = $pageURL;
-            }
+            }*/
         }
         return $withquery ? $current_url_qs : $current_url;
     }
 
     public function requestPath( $strip=true )
     {
-        $request_uri = isset($_SERVER['REQUEST_URI']) ? strtok(strtok($_SERVER["REQUEST_URI"],'?'), '#') : '';
+        $request_uri = /*isset($_SERVER['REQUEST_URI']) ? */strtok(strtok($this->request( )->getRequestUri( ), '?'), '#')/* : ''*/;
 
         if ( $strip && false !== ($p=strpos(str_replace('://', ':%%', $this->BaseUrl), '/')) )
         {
@@ -360,15 +371,19 @@ class Tico
 
     public function requestMethod( $allow_overide=false, $default='GET' )
     {
-        $method = strtoupper(isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : $default);
+        $this->request( );
+        if ( !empty($allow_overide) )
+            HttpRequest::enableHttpMethodParameterOverride( );
+        $method = $this->request( )->getMethod( $default );
+        /*$method = strtoupper(isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : $default);
         if ( !empty($allow_overide) )
         {
-            $key = true === $allow_overide ? 'request_method' : (string)$allow_overide;
+            $key = true === $allow_overide ? '_method' : (string)$allow_overide;
             if ( 'POST'===$method && !empty($_POST[$key]) )
                 $method = strtoupper($_POST[$key]);
             elseif ( 'GET'===$method && !empty($_GET[$key]) )
                 $method = strtoupper($_GET[$key]);
-        }
+        }*/
         return $method;
     }
 
@@ -412,6 +427,8 @@ class Tico
     {
         $this->_fixServerVars( );
 
+        $this->request( );
+
         $passed = true;
 
         if ( !empty($this->Middleware->before) )
@@ -441,7 +458,7 @@ class Tico
             call_user_func($next2);
         }
 
-        $this->response( )->send( );
+        $this->response( )->prepare( $this->request( ) )->send( );
     }
 }
 function tico( $baseUrl='', $basePath='' )
