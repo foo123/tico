@@ -32,6 +32,11 @@ tico('http://localhost:8000', ROOT)
         // eg check if user is authenticated,
         // for example check user cookie and set user var appropriately
         tico()->set('user', tico()->request()->cookies->get('user', 'guest'));
+        // start session example (eg native php session)
+        $session = new HttpSession(/*array(..)*/);
+        tico()->request()->setSession($session);
+        $session->start();
+        if ( !$session->has('count') ) $session->set('count', 0);
         $next();
 
     })
@@ -59,8 +64,14 @@ tico('http://localhost:8000', ROOT)
     })
     ->on(array('get', 'post'), '/hello/{:msg}', function( $params ) {
 
+        $session = tico()->request()->getSession();
+        $session->set('count', $session->get('count')+1);
         tico()->output(
-            array('title' => 'Hello!', 'msg' => $params['msg']),
+            array(
+                'title' => 'Hello!',
+                'msg' => $params['msg'],
+                'count'=> $session->get('count')
+            ),
             tico()->path('/views/hello.tpl.php')
         );
 
