@@ -71,6 +71,14 @@ tico('http://localhost:8000', ROOT)
         ), 'json');
 
     })
+    ->on('*', '/download', function( ) {
+
+        tico()->output(
+            tico()->path('/file.txt'),
+            'file'
+        );
+
+    })
     ->on('*', '/redirect', function( ) {
 
         tico()->redirect(tico()->uri('/'), 302);

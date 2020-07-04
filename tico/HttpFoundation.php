@@ -4160,6 +4160,8 @@ class HttpResponse
     const HTTP_NOT_EXTENDED = 510;                                                // RFC2774
     const HTTP_NETWORK_AUTHENTICATION_REQUIRED = 511;                             // RFC6585
 
+    protected static $trustXSendfileTypeHeader = false;
+
     /**
      * @var \Symfony\Component\HttpFoundation\HttpResponseHeaderBag
      */
@@ -4305,6 +4307,11 @@ class HttpResponse
     public static function create($content = '', $status = 200, $headers = array())
     {
         return new self($content, $status, $headers);
+    }
+
+    public static function enableXSendfileTypeHeader( $enable=true )
+    {
+        self::$trustXSendfileTypeHeader = (bool)$enable;
     }
 
     /**

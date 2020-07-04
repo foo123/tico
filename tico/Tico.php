@@ -24,6 +24,7 @@ class Tico
     public $Language = array();
     public $Locale = null;
 
+    public $Option = array();
     public $Data = array();
     public $Middleware = null;
 
@@ -84,6 +85,48 @@ class Tico
         // Fix empty PHP_SELF
         if ( empty( $_SERVER['PHP_SELF'] ) )
             $_SERVER['PHP_SELF'] = preg_replace( '/(\?.*)?$/', '', $_SERVER["REQUEST_URI"] );
+    }
+
+    public function env( $key, $default=null, $registry='ANY' )
+    {
+        $registry = explode('|', strtoupper($registry));
+        $search_all = in_array('ANY', $registry);
+
+        $val = $default;
+
+        if ( ($search_all || in_array('CONSTANTS', $registry)) && defined($key) )
+        {
+            $val = constant($key);
+        }
+        elseif ( ($search_all || in_array('SERVER', $registry)) && isset($_SERVER[$key]) )
+        {
+            $val = $_SERVER[$key];
+        }
+        elseif ( ($search_all || in_array('ENV', $registry)) && isset($_ENV[$key]) )
+        {
+            $val = $_ENV[$key];
+        }
+        elseif ( ($search_all || in_array('ENV', $registry)) && false !== getenv($key) )
+        {
+            $val = getenv($key);
+        }
+        elseif ( ($search_all || in_array('INI', $registry)) && false !== ini_get($key) )
+        {
+            $val = ini_get($key);
+        }
+
+        return $val;
+    }
+
+    public function option( $key )
+    {
+        $args = func_get_args();
+        if ( 1 < count($args) )
+        {
+            $this->Option[$key] = $args[1];
+            return $this;
+        }
+        return isset($this->Option[$key]) ? $this->Option[$key] : null;
     }
 
     public function get( $key )
