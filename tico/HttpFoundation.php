@@ -676,7 +676,7 @@ class HttpHeaderUtils
         $assoc = array();
         foreach ($parts as $part) {
             $name = strtolower($part[0]);
-            $value = $part[1] ?? true;
+            $value = isset($part[1]) ? $part[1] : true;
             $assoc[$name] = $value;
         }
 
