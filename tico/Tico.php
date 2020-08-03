@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.5.0
+* @version 1.6.0
 * https://github.com/foo123/tico
 *
 */
@@ -10,7 +10,7 @@
 if ( !defined('TICO') ) define('TICO', dirname(__FILE__));
 class Tico
 {
-    const VERSION = '1.5.0';
+    const VERSION = '1.6.0';
 
     public $Loader = null;
     public $Router = null;
@@ -33,6 +33,7 @@ class Tico
         $this->BaseUrl = rtrim($baseUrl, '/');
         $this->BasePath = rtrim($basePath, '/\\');
         $this->Middleware = (object)array('before'=>array(), 'after'=>array());
+        $this->option('views', array(''));
     }
 
     protected function _fixServerVars( )
@@ -178,7 +179,7 @@ class Tico
     public function tpl( $tpl, $data=array() )
     {
         if ( !class_exists('InTpl', false) ) include(TICO.'/InTpl.php');
-        return InTpl::Tpl($tpl)->render($data);
+        return InTpl::Tpl($tpl, $this->option('views'))->render($data);
     }
 
     public function output( $data, $type='html', $headers=array() )
@@ -300,7 +301,7 @@ class Tico
     public function uri( )
     {
         $uri = ltrim(implode('', func_get_args( )), '/');
-        return $this->BaseUrl . (strlen($uri) ? ('/' . $uri) : '');
+        return (false === strpos($uri, '://', 0) ? ($this->BaseUrl . (strlen($uri) ? '/' : '')) : '') . $uri;
     }
 
     public function route( $route, $params=array(), $strict=false )

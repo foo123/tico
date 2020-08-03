@@ -1,4 +1,4 @@
-<?php $this->extend(tico()->path('/views/content.tpl.php')); ?>
+<?php $this->extend('content.tpl.php'); ?>
 
 <?php $this->start('content'); ?>
 <p><?php echo tico()->get('model')->getMsg(); ?> <?php echo $msg; ?>, you visited <?php echo $count; ?> time(s)</p>

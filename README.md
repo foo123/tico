@@ -1,6 +1,6 @@
 # tico
 
-Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.5.0)
+Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.6.0)
 
 
 **Uses:**
@@ -26,6 +26,7 @@ class MyModel
 }
 
 tico('http://localhost:8000', ROOT)
+    ->option('views', tico()->path('/views'))
     ->set('model', new MyModel()) // simple dependency injection container
     ->middleware(function( $next ) {
 
@@ -47,7 +48,7 @@ tico('http://localhost:8000', ROOT)
             //tico()->redirect(tico()->uri('/hello/bar'), 302);
             tico()->output(
                 array('title' => 'Hello!', 'msg' => 'guest'),
-                tico()->path('/views/hello.tpl.php')
+                'hello.tpl.php'
             );
         // else pass along
         else
@@ -58,7 +59,7 @@ tico('http://localhost:8000', ROOT)
 
         tico()->output(
             array('title' => 'Demo Index'),
-            tico()->path('/views/index.tpl.php')
+            'index.tpl.php'
         );
 
     })
@@ -72,7 +73,7 @@ tico('http://localhost:8000', ROOT)
                 'msg' => $params['msg'],
                 'count'=> $session->get('count')
             ),
-            tico()->path('/views/hello.tpl.php')
+            'hello.tpl.php'
         );
 
     })
@@ -102,7 +103,7 @@ tico('http://localhost:8000', ROOT)
 
         tico()->output(
             array(),
-            tico()->path('/views/404.tpl.php'),
+            '404.tpl.php',
             array('StatusCode' => 404)
         );
 
