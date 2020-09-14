@@ -2,7 +2,7 @@
 /**
 *
 * InTpl: simple php templates supporting template inheritance
-* @version 1.1.0
+* @version 1.1.1
 * https://github.com/foo123/InTpl
 *
 */
@@ -10,7 +10,7 @@ if ( !class_exists('InTpl', false) )
 {
 class InTpl
 {
-    const VERSION = '1.1.0';
+    const VERSION = '1.1.1';
 
     protected $_super = null;
     protected $_sprout = null;
@@ -61,7 +61,7 @@ class InTpl
         {
             // need to parse/render super tpl here early
             // in order to have access to $this->super()->block(..) calls
-            // anyway to minimise double parsing/rendering of super tpl??
+            // any way to minimise double parsing/rendering of super tpl??
             $this->_sprout = $this->_super->render( $this->data );
         }
         return $this->_super;
@@ -74,24 +74,33 @@ class InTpl
         return $this;
     }
 
-    public function start( $name )
+    public function start( $name, $echo=true )
     {
-        $this->_blocks[$name] = '';
+        $this->_blocks[$name] = (bool)$echo;
         ob_start();
         return $this;
     }
 
-    public function end( $name )
+    public function end( $name/*, $echo=true*/ )
     {
+        $echo = $this->_blocks[$name];
         $this->_blocks[$name] = ob_get_clean();
-        echo isset($this->blocks[$name]) ? $this->blocks[$name] : $this->_blocks[$name];
+        if ( $echo ) echo isset($this->blocks[$name]) ? $this->blocks[$name] : $this->_blocks[$name];
         return $this;
     }
 
-    public function block( $name )
+    public function block( $name, $echo=true )
     {
-        echo isset($this->_blocks[$name]) ? $this->_blocks[$name] : '';
-        return $this;
+        $output = isset($this->_blocks[$name]) ? $this->_blocks[$name] : '';
+        if ( $echo )
+        {
+            echo $output;
+            return $this;
+        }
+        else
+        {
+            return $output;
+        }
     }
 
     public function render( $data=array() )
@@ -102,6 +111,7 @@ class InTpl
         if ( !$this->found ) return '';
 
         $this->data = (array)$data;
+        unset($data);
         extract($this->data, EXTR_SKIP);
 
         ob_start();

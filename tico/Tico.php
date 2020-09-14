@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.6.0
+* @version 1.6.1
 * https://github.com/foo123/tico
 *
 */
@@ -10,7 +10,7 @@
 if ( !defined('TICO') ) define('TICO', dirname(__FILE__));
 class Tico
 {
-    const VERSION = '1.6.0';
+    const VERSION = '1.6.1';
 
     public $Loader = null;
     public $Router = null;
@@ -393,10 +393,11 @@ class Tico
         return $withquery ? $current_url_qs : $current_url;
     }
 
-    public function requestPath( $strip=true )
+    public function requestPath( $strip=true, $caseInsensitive=true )
     {
         $request_uri = /*isset($_SERVER['REQUEST_URI']) ? */strtok(strtok($this->request( )->getRequestUri( ), '?'), '#')/* : ''*/;
 
+        if ( $caseInsensitive ) $request_uri = strtolower($request_uri);
         if ( $strip && false !== ($p=strpos(str_replace('://', ':%%', $this->BaseUrl), '/')) )
         {
             $base_uri = substr($this->BaseUrl, $p);
@@ -489,7 +490,7 @@ class Tico
 
         if ( $passed )
         {
-            $this->router( )->route( $this->requestPath( true ), $this->requestMethod( ) );
+            $this->router( )->route( $this->requestPath( true, true ), $this->requestMethod( ) );
         }
 
         if ( !empty($this->Middleware->after) )
