@@ -292,10 +292,26 @@ class Tico
         return $this->loader()->assets( $type );
     }
 
+    public function autoload( $what )
+    {
+        foreach($what as $type=>$items)
+            $this->loader()->register($type, $items);
+        $this->loader()->register_autoload();
+        return $this;
+    }
+
     public function path( )
     {
         $path = ltrim(implode('', func_get_args( )), '/\\');
         return $this->BasePath . (strlen($path) ? (DIRECTORY_SEPARATOR . $path) : '');
+    }
+
+    public function webroot( )
+    {
+        $webroot = $this->option('WEBROOT');
+        if ( !$webroot ) $webroot = $this->BasePath;
+        $path = ltrim(implode('', func_get_args( )), '/\\');
+        return rtrim($webroot, '/\\') . (strlen($path) ? (DIRECTORY_SEPARATOR . $path) : '');
     }
 
     public function uri( )
