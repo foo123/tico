@@ -525,6 +525,6 @@ class Tico
 function tico( $baseUrl='', $basePath='' )
 {
     static $app = null;
-    if ( !$app ) $app = new Tico($baseUrl, $basePath);
+    if ( !$app ) $app = $baseUrl instanceof Tico ? $baseUrl : new Tico($baseUrl, $basePath);
     return $app;
 }
