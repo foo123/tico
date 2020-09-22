@@ -160,6 +160,22 @@ class Tico
         return $this->Router;
     }
 
+    public function setRequest( $req )
+    {
+        if ( !class_exists('HttpRequest', false) ) include( TICO.'/HttpFoundation.php' );
+        if ( $req instanceof HttpRequest )
+            $this->Request = $req;
+        return $this;
+    }
+
+    public function setResponse( $res )
+    {
+        if ( !class_exists('HttpResponse', false) ) include( TICO.'/HttpFoundation.php' );
+        if ( $res instanceof HttpResponse )
+            $this->Response = $res;
+        return $this;
+    }
+
     public function request( )
     {
         if ( $this->Request ) return $this->Request;
