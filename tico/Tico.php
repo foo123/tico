@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.6.1
+* @version 1.6.2
 * https://github.com/foo123/tico
 *
 */
@@ -10,7 +10,7 @@
 if ( !defined('TICO') ) define('TICO', dirname(__FILE__));
 class Tico
 {
-    const VERSION = '1.6.1';
+    const VERSION = '1.6.2';
 
     public $Loader = null;
     public $Router = null;
@@ -160,36 +160,42 @@ class Tico
         return $this->Router;
     }
 
-    public function setRequest( $req )
+    public function request( /*$req*/ )
     {
-        if ( !class_exists('HttpRequest', false) ) include( TICO.'/HttpFoundation.php' );
-        if ( $req instanceof HttpRequest )
-            $this->Request = $req;
-        return $this;
+        $args = func_get_args();
+        if (0<count($args))
+        {
+            $req = $args[0];
+            if ( !class_exists('HttpRequest', false) ) include( TICO.'/HttpFoundation.php' );
+            if ($req instanceof HttpRequest) $this->Request = $req;
+            return $this;
+        }
+        else
+        {
+            if ( $this->Request ) return $this->Request;
+            if ( !class_exists('HttpRequest', false) ) include( TICO.'/HttpFoundation.php' );
+            $this->Request = HttpRequest::createFromGlobals( );
+            return $this->Request;
+        }
     }
 
-    public function setResponse( $res )
+    public function response( /*$res*/ )
     {
-        if ( !class_exists('HttpResponse', false) ) include( TICO.'/HttpFoundation.php' );
-        if ( $res instanceof HttpResponse )
-            $this->Response = $res;
-        return $this;
-    }
-
-    public function request( )
-    {
-        if ( $this->Request ) return $this->Request;
-        if ( !class_exists('HttpRequest', false) ) include( TICO.'/HttpFoundation.php' );
-        $this->Request = HttpRequest::createFromGlobals( );
-        return $this->Request;
-    }
-
-    public function response( )
-    {
-        if ( $this->Response ) return $this->Response;
-        if ( !class_exists('HttpResponse', false) ) include( TICO.'/HttpFoundation.php' );
-        $this->Response = new HttpResponse( );
-        return $this->Response;
+        $args = func_get_args();
+        if (0<count($args))
+        {
+            $res = $args[0];
+            if ( !class_exists('HttpResponse', false) ) include( TICO.'/HttpFoundation.php' );
+            if ($res instanceof HttpResponse) $this->Response = $res;
+            return $this;
+        }
+        else
+        {
+            if ( $this->Response ) return $this->Response;
+            if ( !class_exists('HttpResponse', false) ) include( TICO.'/HttpFoundation.php' );
+            $this->Response = new HttpResponse( );
+            return $this->Response;
+        }
     }
 
     public function tpl( $tpl, $data=array() )
