@@ -47,8 +47,11 @@ tico('http://localhost:8000', ROOT)
     ->on('*', '/', function( ) {
 
         tico()->output(
-            array('title' => 'Demo Index'),
-            'index.tpl.php'
+            // streamed output
+            function() {
+                echo tico()->tpl('index.tpl.php', array('title' => 'Demo Index'));
+            },
+            'html'
         );
 
     })
