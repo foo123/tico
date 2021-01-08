@@ -1,6 +1,6 @@
 # tico
 
-Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.6.2)
+Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.6.5)
 
 
 **Uses:**
@@ -27,7 +27,10 @@ class MyModel
 
 tico('http://localhost:8000', ROOT)
     ->option('views', tico()->path('/views'))
-    ->set('model', new MyModel()) // simple dependency injection container
+    //->set('model', new MyModel()) // simple dependency injection container
+    ->set('model', function( ) {
+        return new MyModel();
+    }) // container supports lazy factory-like functions 
     ->middleware(function( $next ) {
 
         // eg check if user is authenticated,

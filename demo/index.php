@@ -12,8 +12,11 @@ class MyModel
 }
 
 tico('http://localhost:8000', ROOT)
-    ->option('views', tico()->path('/views'))
-    ->set('model', new MyModel()) // simple dependency injection container
+    ->option('views', array(tico()->path('/views')))
+    //->set('model', new MyModel()) // simple dependency injection container
+    ->set('model', function( ) {
+        return new MyModel();
+    }) // container supports lazy factory-like functions 
     ->middleware(function( $next ) {
 
         // eg check if user is authenticated,
@@ -23,14 +26,14 @@ tico('http://localhost:8000', ROOT)
         $session = new HttpSession(/*array(..)*/);
         tico()->request()->setSession($session);
         $session->start();
-        if ( !$session->has('count') ) $session->set('count', 0);
+        if (! $session->has('count')) $session->set('count', 0);
         $next();
 
     })
     ->middleware(function( $next ) {
 
         // if this condition is met, abort current request, eg user is not authenticated
-        if ( ('guest'==tico()->get('user')) && ('/hello/foo'==tico()->requestPath()) )
+        if (('guest' == tico()->get('user')) && ('/hello/foo' == tico()->requestPath()))
             //tico()->redirect(tico()->uri('/hello/bar'), 302);
             tico()->output(
                 array('title' => 'Hello!', 'msg' => 'guest'),
@@ -97,9 +100,9 @@ tico('http://localhost:8000', ROOT)
     ->middleware(function( $next ) {
 
         // post process, eg create cache files from response
-        if ( (200 == tico()->response()->getStatusCode()) && 'text/html'==tico()->response()->headers->get('Content-Type') && !tico()->response()->getFile() && !tico()->response()->getCallback() )
+        if ((200 == tico()->response()->getStatusCode()) && 'text/html'==tico()->response()->headers->get('Content-Type') && !tico()->response()->getFile() && !tico()->response()->getCallback())
         {
-            tico()->response()->setContent(tico()->response()->getContent().'<!-- post processed -->');
+            tico()->response()->setContent(tico()->response()->getContent() . '<!-- post processed -->');
         }
 
     }, 'after')

@@ -2,15 +2,15 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.6.2
+* @version 1.6.5
 * https://github.com/foo123/tico
 *
 */
 
-if ( !defined('TICO') ) define('TICO', dirname(__FILE__));
+if (! defined('TICO')) define('TICO', dirname(__FILE__));
 class Tico
 {
-    const VERSION = '1.6.2';
+    const VERSION = '1.6.5';
 
     public $Loader = null;
     public $Router = null;
@@ -28,7 +28,7 @@ class Tico
     public $Data = array();
     public $Middleware = null;
 
-    public function __construct( $baseUrl='', $basePath='' )
+    public function __construct($baseUrl = '', $basePath = '')
     {
         $this->BaseUrl = rtrim($baseUrl, '/');
         $this->BasePath = rtrim($basePath, '/\\');
@@ -36,82 +36,88 @@ class Tico
         $this->option('views', array(''));
     }
 
-    protected function _fixServerVars( )
+    protected function _fixServerVars()
     {
         $default_server_values = array(
             'SERVER_SOFTWARE' => '',
             'REQUEST_URI' => '',
         );
 
-        $_SERVER = array_merge( $default_server_values, $_SERVER );
+        $_SERVER = array_merge($default_server_values, $_SERVER);
 
         // Fix for IIS when running with PHP ISAPI
-        if ( empty( $_SERVER['REQUEST_URI'] ) || ( PHP_SAPI != 'cgi-fcgi' && preg_match( '/^Microsoft-IIS\//', $_SERVER['SERVER_SOFTWARE'] ) ) ) {
-
+        if (empty($_SERVER['REQUEST_URI']) || (PHP_SAPI != 'cgi-fcgi' && preg_match('/^Microsoft-IIS\//', $_SERVER['SERVER_SOFTWARE'])))
+        {
             // IIS Mod-Rewrite
-            if ( isset( $_SERVER['HTTP_X_ORIGINAL_URL'] ) ) {
+            if (isset($_SERVER['HTTP_X_ORIGINAL_URL']))
+            {
                 $_SERVER['REQUEST_URI'] = $_SERVER['HTTP_X_ORIGINAL_URL'];
             }
             // IIS Isapi_Rewrite
-            elseif ( isset( $_SERVER['HTTP_X_REWRITE_URL'] ) ) {
+            elseif (isset($_SERVER['HTTP_X_REWRITE_URL']))
+            {
                 $_SERVER['REQUEST_URI'] = $_SERVER['HTTP_X_REWRITE_URL'];
-            } else {
+            }
+            else
+            {
                 // Use ORIG_PATH_INFO if there is no PATH_INFO
-                if ( !isset( $_SERVER['PATH_INFO'] ) && isset( $_SERVER['ORIG_PATH_INFO'] ) )
+                if (! isset($_SERVER['PATH_INFO']) && isset($_SERVER['ORIG_PATH_INFO']))
                     $_SERVER['PATH_INFO'] = $_SERVER['ORIG_PATH_INFO'];
 
                 // Some IIS + PHP configurations puts the script-name in the path-info (No need to append it twice)
-                if ( isset( $_SERVER['PATH_INFO'] ) ) {
-                    if ( $_SERVER['PATH_INFO'] == $_SERVER['SCRIPT_NAME'] )
+                if (isset($_SERVER['PATH_INFO']))
+                {
+                    if ($_SERVER['PATH_INFO'] == $_SERVER['SCRIPT_NAME'])
                         $_SERVER['REQUEST_URI'] = $_SERVER['PATH_INFO'];
                     else
                         $_SERVER['REQUEST_URI'] = $_SERVER['SCRIPT_NAME'] . $_SERVER['PATH_INFO'];
                 }
 
                 // Append the query string if it exists and isn't null
-                if ( ! empty( $_SERVER['QUERY_STRING'] ) ) {
+                if (! empty($_SERVER['QUERY_STRING']))
+                {
                     $_SERVER['REQUEST_URI'] .= '?' . $_SERVER['QUERY_STRING'];
                 }
             }
         }
 
         // Fix for PHP as CGI hosts that set SCRIPT_FILENAME to something ending in php.cgi for all requests
-        if ( isset( $_SERVER['SCRIPT_FILENAME'] ) && ( strpos( $_SERVER['SCRIPT_FILENAME'], 'php.cgi' ) == strlen( $_SERVER['SCRIPT_FILENAME'] ) - 7 ) )
+        if (isset($_SERVER['SCRIPT_FILENAME']) && (strpos($_SERVER['SCRIPT_FILENAME'], 'php.cgi') == strlen($_SERVER['SCRIPT_FILENAME']) - 7))
             $_SERVER['SCRIPT_FILENAME'] = $_SERVER['PATH_TRANSLATED'];
 
         // Fix for Dreamhost and other PHP as CGI hosts
-        if ( strpos( $_SERVER['SCRIPT_NAME'], 'php.cgi' ) !== false )
-            unset( $_SERVER['PATH_INFO'] );
+        if (strpos($_SERVER['SCRIPT_NAME'], 'php.cgi') !== false)
+            unset($_SERVER['PATH_INFO']);
 
         // Fix empty PHP_SELF
-        if ( empty( $_SERVER['PHP_SELF'] ) )
-            $_SERVER['PHP_SELF'] = preg_replace( '/(\?.*)?$/', '', $_SERVER["REQUEST_URI"] );
+        if (empty($_SERVER['PHP_SELF']))
+            $_SERVER['PHP_SELF'] = preg_replace('/(\?.*)?$/', '', $_SERVER["REQUEST_URI"]);
     }
 
-    public function env( $key, $default=null, $registry='ANY' )
+    public function env($key, $default = null, $registry = 'ANY')
     {
         $registry = explode('|', strtoupper($registry));
         $search_all = in_array('ANY', $registry);
 
         $val = $default;
 
-        if ( ($search_all || in_array('CONSTANTS', $registry)) && defined($key) )
+        if (($search_all || in_array('CONSTANTS', $registry)) && defined($key))
         {
             $val = constant($key);
         }
-        elseif ( ($search_all || in_array('SERVER', $registry)) && isset($_SERVER[$key]) )
+        elseif (($search_all || in_array('SERVER', $registry)) && isset($_SERVER[$key]))
         {
             $val = $_SERVER[$key];
         }
-        elseif ( ($search_all || in_array('ENV', $registry)) && isset($_ENV[$key]) )
+        elseif (($search_all || in_array('ENV', $registry)) && isset($_ENV[$key]))
         {
             $val = $_ENV[$key];
         }
-        elseif ( ($search_all || in_array('ENV', $registry)) && false !== getenv($key) )
+        elseif (($search_all || in_array('ENV', $registry)) && false !== getenv($key))
         {
             $val = getenv($key);
         }
-        elseif ( ($search_all || in_array('INI', $registry)) && false !== ini_get($key) )
+        elseif (($search_all || in_array('INI', $registry)) && false !== ini_get($key))
         {
             $val = ini_get($key);
         }
@@ -119,10 +125,10 @@ class Tico
         return $val;
     }
 
-    public function option( $key )
+    public function option($key)
     {
         $args = func_get_args();
-        if ( 1 < count($args) )
+        if (1 < count($args))
         {
             $this->Option[$key] = $args[1];
             return $this;
@@ -130,124 +136,136 @@ class Tico
         return isset($this->Option[$key]) ? $this->Option[$key] : null;
     }
 
-    public function get( $key )
+    public function get($key)
     {
         $key = (string)$key;
-        if ( !isset($this->Data[$key]) )
+        if (! isset($this->Data[$key]))
             throw new InvalidArgumentException('"'.$key.'" is not set!');
-        return $this->Data[$key];
+
+
+        $val = $this->Data[$key];
+        // lazy factory getter, execute only once and return whatever it returns
+        if (is_callable($val)) $this->Data[$key] = $val = call_user_func($val);
+
+        return $val;
     }
 
-    public function set( $key, $val )
+    public function set($key, $val)
     {
         $this->Data[(string)$key] = $val;
         return $this;
     }
 
-    public function loader( )
+    public function loader()
     {
-        if ( $this->Loader ) return $this->Loader;
-        if ( !class_exists('Importer', false) ) include( TICO.'/Importer.php' );
-        $this->Loader = new Importer( $this->BasePath, $this->BaseUrl );
+        if ($this->Loader) return $this->Loader;
+        if (! class_exists('Importer', false)) include(TICO . '/Importer.php');
+        $this->Loader = new Importer($this->BasePath, $this->BaseUrl);
         return $this->Loader;
     }
 
-    public function router( )
+    public function router()
     {
-        if ( $this->Router ) return $this->Router;
-        if ( !class_exists('Dromeo', false) ) include( TICO.'/Dromeo.php' );
-        $this->Router = new Dromeo( );
+        if ($this->Router) return $this->Router;
+        if (! class_exists('Dromeo', false)) include(TICO . '/Dromeo.php');
+        $this->Router = new Dromeo();
         return $this->Router;
     }
 
-    public function request( /*$req*/ )
+    public function request(/*$req*/)
     {
         $args = func_get_args();
-        if (0<count($args))
+        if (0 < count($args))
         {
             $req = $args[0];
-            if ( !class_exists('HttpRequest', false) ) include( TICO.'/HttpFoundation.php' );
+            if (! class_exists('HttpRequest', false)) include(TICO . '/HttpFoundation.php');
             if ($req instanceof HttpRequest) $this->Request = $req;
             return $this;
         }
         else
         {
-            if ( $this->Request ) return $this->Request;
-            if ( !class_exists('HttpRequest', false) ) include( TICO.'/HttpFoundation.php' );
-            $this->Request = HttpRequest::createFromGlobals( );
+            if ($this->Request) return $this->Request;
+            if (! class_exists('HttpRequest', false)) include(TICO . '/HttpFoundation.php');
+            $this->Request = HttpRequest::createFromGlobals();
             return $this->Request;
         }
     }
 
-    public function response( /*$res*/ )
+    public function response(/*$res*/)
     {
         $args = func_get_args();
-        if (0<count($args))
+        if (0 < count($args))
         {
             $res = $args[0];
-            if ( !class_exists('HttpResponse', false) ) include( TICO.'/HttpFoundation.php' );
+            if (! class_exists('HttpResponse', false)) include(TICO . '/HttpFoundation.php');
             if ($res instanceof HttpResponse) $this->Response = $res;
             return $this;
         }
         else
         {
-            if ( $this->Response ) return $this->Response;
-            if ( !class_exists('HttpResponse', false) ) include( TICO.'/HttpFoundation.php' );
-            $this->Response = new HttpResponse( );
+            if ($this->Response) return $this->Response;
+            if (! class_exists('HttpResponse', false)) include(TICO . '/HttpFoundation.php');
+            $this->Response = new HttpResponse();
             return $this->Response;
         }
     }
 
-    public function tpl( $tpl, $data=array() )
+    public function tpl($tpl, $data = array())
     {
-        if ( !class_exists('InTpl', false) ) include(TICO.'/InTpl.php');
+        if (! class_exists('InTpl', false)) include(TICO . '/InTpl.php');
         return InTpl::Tpl($tpl, $this->option('views'))->render($data);
     }
 
-    public function output( $data, $type='html', $headers=array() )
+    public function output($data, $type = 'html', $headers = array())
     {
         $type = empty($type) ? 'html' : $type;
-        switch( $type )
+        switch($type)
         {
             case 'pre':
-                if ( is_array($data) || is_object($data) ) $data = print_r($data, true);
+                if (is_array($data) || is_object($data)) $data = print_r($data, true);
                 $data = '<pre>' . str_replace(array('&','<','>'), array('&amp;','&lt;','&gt;'), (string)$data) . '</pre>';
                 // no break
 
             case 'html':
-                if ( !$this->response()->headers->has('Content-Type') )
+                if (! $this->response()->headers->has('Content-Type'))
                 {
                     $this->response()->headers->set('Content-Type', 'text/html');
                 }
                 // no break
 
             case 'text':
-                if ( !$this->response()->headers->has('Content-Type') )
+                if (! $this->response()->headers->has('Content-Type'))
                 {
                     $this->response()->headers->set('Content-Type', 'text/plain');
                 }
-                $this->response()->setContent((string)$data);
+                if (is_callable($data))
+                    $this->response()->setCallback($data);
+                else
+                    $this->response()->setContent((string)$data);
                 break;
 
             case 'json':
-                if ( !$this->response()->headers->has('Content-Type') )
+                if (! $this->response()->headers->has('Content-Type'))
                 {
                     $this->response()->headers->set('Content-Type', 'application/json');
                 }
-                $this->response()->setContent(false === $data ? 'false' : json_encode( $data ));
+                if (is_callable($data))
+                    $this->response()->setCallback($data);
+                else
+                    $this->response()->setContent(json_encode($data));
                 break;
 
             case 'file':
                 $file = $data;
-                if ( !$this->response()->headers->has('Content-Type') )
+                if (! $this->response()->headers->has('Content-Type'))
                 {
-                    $file_type = mime_content_type( $file );
-                    if ( empty($file_type) ) $file_type = 'application/octet-stream';
+                    $file_type = mime_content_type($file);
+                    if (empty($file_type)) $file_type = 'application/octet-stream';
                     $this->response()->headers->set('Content-Type', $file_type);
                 }
-                //$this->response->headers->set('Content-Length', filesize( $file ));
+                //$this->response->headers->set('Content-Length', filesize($file));
                 $this->response()->setFile($file);
-                if ( $headers && isset($headers['deleteFileAfterSend']) )
+                if ($headers && isset($headers['deleteFileAfterSend']))
                 {
                     $this->response()->deleteFileAfterSend($headers['deleteFileAfterSend']);
                     unset($headers['deleteFileAfterSend']);
@@ -255,34 +273,37 @@ class Tico
                 break;
 
             default:
-                if ( !$this->response()->headers->has('Content-Type') )
+                if (! $this->response()->headers->has('Content-Type'))
                 {
                     $this->response()->headers->set('Content-Type', 'text/html');
                 }
-                $this->response()->setContent($this->tpl($type, $data));
+                if (is_callable($data))
+                    $this->response()->setCallback($data);
+                else
+                    $this->response()->setContent($this->tpl($type, $data));
                 break;
         }
-        if ( !empty($headers) )
+        if (! empty($headers))
         {
-            foreach ((array)$headers as $key=>$value)
+            foreach ((array)$headers as $key => $value)
             {
                 $keyl = strtolower($key);
-                if ( 'charset' === $keyl )
+                if ('charset' === $keyl)
                 {
                     $this->response()->setCharset($value);
                 }
-                elseif ( 'statuscode' === $keyl )
+                elseif ('statuscode' === $keyl)
                 {
                     $this->response()->setStatusCode((int)$value);
                 }
-                elseif ( 'cache-control' === $keyl )
+                elseif ('cache-control' === $keyl)
                 {
-                    foreach((array)$value as $v)
+                    foreach ((array)$value as $v)
                     {
                         $v = strtolower($v);
-                        if ( 'public' === $v )
+                        if ('public' === $v)
                             $this->response()->setPublic();
-                        elseif ( 'private' === $v )
+                        elseif ('private' === $v)
                             $this->response()->setPrivate();
                         else
                             $this->response()->headers->addCacheControlDirective($v);
@@ -297,68 +318,68 @@ class Tico
         return $this;
     }
 
-    public function redirect( $uri, $code=302 )
+    public function redirect($uri, $code = 302)
     {
         $this->response()->setTargetUrl($uri, $code);
         return $this;
     }
 
-    public function enqueue( $type, $id, $asset_def=array() )
+    public function enqueue($type, $id, $asset_def = array())
     {
-        $this->loader()->enqueue( $type, $id, (array)$asset_def );
+        $this->loader()->enqueue($type, $id, (array)$asset_def);
         return $this;
     }
 
-    public function assets( $type="scripts" )
+    public function assets($type = "scripts")
     {
-        return $this->loader()->assets( $type );
+        return $this->loader()->assets($type);
     }
 
-    public function autoload( $what )
+    public function autoload($what)
     {
-        foreach($what as $type=>$items)
+        foreach($what as $type => $items)
             $this->loader()->register($type, $items);
         $this->loader()->register_autoload();
         return $this;
     }
 
-    public function path( )
+    public function path()
     {
         $path = ltrim(implode('', func_get_args( )), '/\\');
         return $this->BasePath . (strlen($path) ? (DIRECTORY_SEPARATOR . $path) : '');
     }
 
-    public function webroot( )
+    public function webroot()
     {
         $webroot = $this->option('WEBROOT');
-        if ( !$webroot ) $webroot = $this->BasePath;
+        if (! $webroot) $webroot = $this->BasePath;
         $path = ltrim(implode('', func_get_args( )), '/\\');
         return rtrim($webroot, '/\\') . (strlen($path) ? (DIRECTORY_SEPARATOR . $path) : '');
     }
 
-    public function uri( )
+    public function uri()
     {
         $uri = ltrim(implode('', func_get_args( )), '/');
         return (false === strpos($uri, '://', 0) ? ($this->BaseUrl . (strlen($uri) ? '/' : '')) : '') . $uri;
     }
 
-    public function route( $route, $params=array(), $strict=false )
+    public function route($route, $params = array(), $strict = false)
     {
         return $this->uri($this->router()->make($route, $params, $strict));
     }
 
-    public function locale( $l, $lang )
+    public function locale($l, $lang)
     {
-        if ( !empty($lang) )
+        if (! empty($lang))
         {
             $lang = (string)$lang;
-            if ( is_callable($l) )
+            if (is_callable($l))
             {
                 $this->LanguagePluralForm[$lang] = $l;
             }
-            else if ( !empty($l) )
+            else if (! empty($l))
             {
-                if ( !isset($this->Language[$lang]) ) $this->Language[$lang] = array();
+                if (! isset($this->Language[$lang])) $this->Language[$lang] = array();
                 $this->Language[$lang] = array_merge($this->Language[$lang], (array)$l);
             }
             $this->Locale = $lang;
@@ -366,16 +387,16 @@ class Tico
         return $this;
     }
 
-    public function l( $s, $args=null )
+    public function l($s, $args = null)
     {
         // localisation
         $locale = $this->Locale;
         $ls = $locale && isset($this->Language[$locale]) && isset($this->Language[$locale][$s]) ? $this->Language[$locale][$s] : $s;
-        if ( !empty($args) ) $ls = vsprintf($ls, (array)$args);
+        if (! empty($args)) $ls = vsprintf($ls, (array)$args);
         return $ls;
     }
 
-    public function pl( $n )
+    public function pl($n)
     {
         // custom plural form per locale
         $locale = $this->Locale;
@@ -383,7 +404,7 @@ class Tico
         return $isSingular;
     }
 
-    public function nl( $n, $singular, $plural, $args=null )
+    public function nl($n, $singular, $plural, $args = null)
     {
         // singular/plural localisation
         return $this->l($this->pl($n) ? $singular : $plural, $args);
@@ -391,35 +412,35 @@ class Tico
 
     public function isSsl()
     {
-        return $this->request( )->isSecure( )/*(!empty($_SERVER['HTTPS']) && 'off' !== strtolower($_SERVER['HTTPS'])) || (isset($_SERVER['SERVER_PORT']) && ('443' == $_SERVER['SERVER_PORT'])) ? true : false*/;
+        return $this->request()->isSecure()/*(! empty($_SERVER['HTTPS']) && 'off' !== strtolower($_SERVER['HTTPS'])) || (isset($_SERVER['SERVER_PORT']) && ('443' == $_SERVER['SERVER_PORT'])) ? true : false*/;
     }
 
-    public function currentUrl( $withquery=false )
+    public function currentUrl($withquery = false)
     {
         static $current_url = null;
         static $current_url_qs = null;
-        if ( null === $current_url )
+        if (null === $current_url)
         {
-            $current_url = $this->request( )->getUri( false );
-            $current_url_qs = $this->request( )->getUri( true );
+            $current_url = $this->request()->getUri(false);
+            $current_url_qs = $this->request()->getUri(true);
             /*$query = !empty($_SERVER['QUERY_STRING']) ? '?'.$_SERVER['QUERY_STRING'] : '';
             $pageURL = ($this->isSsl() ? 'https' : 'http') . '://';
-            if ( ('80' != $_SERVER["SERVER_PORT"]) && !($this->isSsl() && '443' == $_SERVER["SERVER_PORT"]) )
+            if (('80' != $_SERVER["SERVER_PORT"]) && ! ($this->isSsl() && '443' == $_SERVER["SERVER_PORT"]))
             {
-                $pageURL .= $_SERVER["SERVER_NAME"].":".$_SERVER["SERVER_PORT"].$_SERVER["REQUEST_URI"];
+                $pageURL .= $_SERVER["SERVER_NAME"] . ":" . $_SERVER["SERVER_PORT"] . $_SERVER["REQUEST_URI"];
             }
             else
             {
-                $pageURL .= $_SERVER["SERVER_NAME"].$_SERVER["REQUEST_URI"];
+                $pageURL .= $_SERVER["SERVER_NAME"] . $_SERVER["REQUEST_URI"];
             }
-            if ( false !== ($p=strpos($pageURL,'?')) )
+            if (false !== ($p=strpos($pageURL,'?')))
             {
                 $current_url_qs = $pageURL;
                 $current_url = substr($pageURL, 0, $p);
             }
-            elseif ( !empty($query) )
+            elseif (! empty($query))
             {
-                $current_url_qs = $pageURL.$query;
+                $current_url_qs = $pageURL . $query;
                 $current_url = $pageURL;
             }
             else
@@ -431,48 +452,48 @@ class Tico
         return $withquery ? $current_url_qs : $current_url;
     }
 
-    public function requestPath( $strip=true, $caseInsensitive=true )
+    public function requestPath($strip = true, $caseInsensitive = true)
     {
-        $request_uri = /*isset($_SERVER['REQUEST_URI']) ? */strtok(strtok($this->request( )->getRequestUri( ), '?'), '#')/* : ''*/;
+        $request_uri = /*isset($_SERVER['REQUEST_URI']) ? */strtok(strtok($this->request()->getRequestUri(), '?'), '#')/* : ''*/;
 
-        if ( $caseInsensitive ) $request_uri = strtolower($request_uri);
-        if ( $strip && false !== ($p=strpos(str_replace('://', ':%%', $this->BaseUrl), '/')) )
+        if ($caseInsensitive) $request_uri = strtolower($request_uri);
+        if ($strip && false !== ($p=strpos(str_replace('://', ':%%', $this->BaseUrl), '/')))
         {
             $base_uri = substr($this->BaseUrl, $p);
-            if ( 0 === strpos($request_uri, $base_uri) )
+            if (0 === strpos($request_uri, $base_uri))
                 $request_uri = substr($request_uri, strlen($base_uri));
         }
         // remove trailing slash
-        if ( '/' === substr($request_uri, -1) )
+        if ('/' === substr($request_uri, -1))
             $request_uri = substr($request_uri, 0, -1);
         // make sure root is / (and not empty string)
-        if ( '' === $request_uri )
+        if ('' === $request_uri)
             $request_uri = '/';
 
         return $request_uri;
     }
 
-    public function requestMethod( $allow_overide=false, $default='GET' )
+    public function requestMethod($allow_overide = false, $default = 'GET')
     {
-        $this->request( );
-        if ( !empty($allow_overide) )
-            HttpRequest::enableHttpMethodParameterOverride( );
-        $method = $this->request( )->getMethod( $default );
+        $this->request();
+        if (! empty($allow_overide))
+            HttpRequest::enableHttpMethodParameterOverride();
+        $method = $this->request()->getMethod($default);
         /*$method = strtoupper(isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : $default);
-        if ( !empty($allow_overide) )
+        if (! empty($allow_overide))
         {
             $key = true === $allow_overide ? '_method' : (string)$allow_overide;
-            if ( 'POST'===$method && !empty($_POST[$key]) )
+            if ('POST' === $method && ! empty($_POST[$key]))
                 $method = strtoupper($_POST[$key]);
-            elseif ( 'GET'===$method && !empty($_GET[$key]) )
+            elseif ('GET' === $method && ! empty($_GET[$key]))
                 $method = strtoupper($_GET[$key]);
         }*/
         return $method;
     }
 
-    public function middleware( $middleware, $type='before' )
+    public function middleware($middleware, $type = 'before')
     {
-        if ( is_callable($middleware) )
+        if (is_callable($middleware))
         {
             $type = 'after' === strtolower((string)$type) ? 'after' : 'before';
             $this->Middleware->{$type}[] = $middleware;
@@ -480,73 +501,73 @@ class Tico
         return $this;
     }
 
-    public function on( $method, $route, $handler=null )
+    public function on($method, $route, $handler = null)
     {
-        if ( false === $method )
+        if (false === $method)
         {
             $handler = $route;
-            $this->router( )->fallback(function($route) use($handler) {
+            $this->router()->fallback(function($route) use ($handler) {
                 return call_user_func($handler, false);
             });
         }
         else
         {
-            if ( is_string($route) ) $route = array('route' => $route);
+            if (is_string($route)) $route = array('route' => $route);
             $route = (array)$route;
             $route['method'] = $method;
-            if ( !isset($route['name']) )
+            if (! isset($route['name']))
                 $route['name'] = $route['route'];
-            if ( !is_callable($handler) && isset($route['handler']) && is_callable($route['handler']) )
+            if (! is_callable($handler) && isset($route['handler']) && is_callable($route['handler']))
                 $handler = $route['handler'];
-            $route['handler'] = function($route) use($handler) {
+            $route['handler'] = function($route) use ($handler) {
                 return call_user_func($handler, $route['data']);
             };
-            $this->router( )->on( $route );
+            $this->router()->on($route);
         }
         return $this;
     }
 
-    public function serve( )
+    public function serve()
     {
-        $this->_fixServerVars( );
+        $this->_fixServerVars();
 
-        $this->request( );
+        $this->request();
 
         $passed = true;
 
-        if ( !empty($this->Middleware->before) )
+        if (! empty($this->Middleware->before))
         {
             $passed = false;
             $next1 = function( ) use (&$next1, &$passed) {
                 static $i = -1;
                 $i++;
-                if ( $i >= count($this->Middleware->before) ) $passed = true;
+                if ($i >= count($this->Middleware->before)) $passed = true;
                 else call_user_func($this->Middleware->before[$i], $next1);
             };
             call_user_func($next1);
         }
 
-        if ( $passed )
+        if ($passed)
         {
-            $this->router( )->route( $this->requestPath( true, true ), $this->requestMethod( ) );
+            $this->router()->route($this->requestPath(true, true), $this->requestMethod());
         }
 
-        if ( !empty($this->Middleware->after) )
+        if (! empty($this->Middleware->after))
         {
             $next2 = function( ) use (&$next2) {
                 static $i = -1;
                 $i++;
-                if ( $i < count($this->Middleware->after) ) call_user_func($this->Middleware->after[$i], $next2);
+                if ($i < count($this->Middleware->after)) call_user_func($this->Middleware->after[$i], $next2);
             };
             call_user_func($next2);
         }
 
-        $this->response( )->prepare( $this->request( ) )->send( );
+        $this->response()->prepare($this->request())->send();
     }
 }
-function tico( $baseUrl='', $basePath='' )
+function tico($baseUrl = '', $basePath = '')
 {
     static $app = null;
-    if ( !$app ) $app = $baseUrl instanceof Tico ? $baseUrl : new Tico($baseUrl, $basePath);
+    if (! $app) $app = $baseUrl instanceof Tico ? $baseUrl : new Tico($baseUrl, $basePath);
     return $app;
 }
