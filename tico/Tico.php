@@ -145,7 +145,7 @@ class Tico
 
         $val = $this->Data[$key];
         // lazy factory getter, execute only once and return whatever it returns
-        if (is_callable($val)) $this->Data[$key] = $val = call_user_func($val);
+        if (is_callable($val) && (!is_object($val) || ($val instanceof Closure))) $this->Data[$key] = $val = call_user_func($val);
 
         return $val;
     }
