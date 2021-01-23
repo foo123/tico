@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.6.5
+* @version 1.6.6
 * https://github.com/foo123/tico
 *
 */
@@ -10,7 +10,7 @@
 if (! defined('TICO')) define('TICO', dirname(__FILE__));
 class Tico
 {
-    const VERSION = '1.6.5';
+    const VERSION = '1.6.6';
 
     public $Loader = null;
     public $Router = null;
@@ -421,8 +421,8 @@ class Tico
         static $current_url_qs = null;
         if (null === $current_url)
         {
-            $current_url = $this->request()->getUri(false);
-            $current_url_qs = $this->request()->getUri(true);
+            $current_url = rtrim($this->request()->getUri(false), '/');
+            $current_url_qs = rtrim(str_replace('/?', '?', $this->request()->getUri(true)), '/');
             /*$query = !empty($_SERVER['QUERY_STRING']) ? '?'.$_SERVER['QUERY_STRING'] : '';
             $pageURL = ($this->isSsl() ? 'https' : 'http') . '://';
             if (('80' != $_SERVER["SERVER_PORT"]) && ! ($this->isSsl() && '443' == $_SERVER["SERVER_PORT"]))
