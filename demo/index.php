@@ -12,7 +12,9 @@ class MyModel
 }
 
 tico('http://localhost:8000', ROOT)
-    ->option('views', array(tico()->path('/views')))
+    ->option('webroot', ROOT)
+    ->option('views', [tico()->path('/views')])
+    ->option('case_insensitive_uris', true)
     //->set('model', new MyModel()) // simple dependency injection container
     ->set('model', function( ) {
         return new MyModel();

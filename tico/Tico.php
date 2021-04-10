@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.6.6
+* @version 1.6.7
 * https://github.com/foo123/tico
 *
 */
@@ -10,7 +10,7 @@
 if (! defined('TICO')) define('TICO', dirname(__FILE__));
 class Tico
 {
-    const VERSION = '1.6.6';
+    const VERSION = '1.6.7';
 
     public $Loader = null;
     public $Router = null;
@@ -33,7 +33,11 @@ class Tico
         $this->BaseUrl = rtrim($baseUrl, '/');
         $this->BasePath = rtrim($basePath, '/\\');
         $this->Middleware = (object)array('before'=>array(), 'after'=>array());
+
+        // set some default options
+        $this->option('webroot', $this->BasePath);
         $this->option('views', array(''));
+        $this->option('case_insensitive_uris', true);
     }
 
     protected function _fixServerVars()
@@ -213,7 +217,7 @@ class Tico
     public function tpl($tpl, $data = array())
     {
         if (! class_exists('InTpl', false)) include(TICO . '/InTpl.php');
-        return InTpl::Tpl($tpl, $this->option('views'))->render($data);
+        return InTpl::Tpl($tpl, (array)$this->option('views'))->render($data);
     }
 
     public function output($data, $type = 'html', $headers = array())
@@ -351,7 +355,7 @@ class Tico
 
     public function webroot()
     {
-        $webroot = $this->option('WEBROOT');
+        $webroot = $this->option('webroot');
         if (! $webroot) $webroot = $this->BasePath;
         $path = ltrim(implode('', func_get_args( )), '/\\');
         return rtrim($webroot, '/\\') . (strlen($path) ? (DIRECTORY_SEPARATOR . $path) : '');
@@ -456,11 +460,10 @@ class Tico
     {
         $request_uri = /*isset($_SERVER['REQUEST_URI']) ? */strtok(strtok($this->request()->getRequestUri(), '?'), '#')/* : ''*/;
 
-        if ($caseInsensitive) $request_uri = strtolower($request_uri);
         if ($strip && false !== ($p=strpos(str_replace('://', ':%%', $this->BaseUrl), '/')))
         {
-            $base_uri = substr($this->BaseUrl, $p);
-            if (0 === strpos($request_uri, $base_uri))
+            $base_uri = substr(strtolower($this->BaseUrl), $p);
+            if (0 === strpos(strtolower($request_uri), $base_uri))
                 $request_uri = substr($request_uri, strlen($base_uri));
         }
         // remove trailing slash
@@ -470,6 +473,7 @@ class Tico
         if ('' === $request_uri)
             $request_uri = '/';
 
+        if ($caseInsensitive) $request_uri = strtolower($request_uri);
         return $request_uri;
     }
 
@@ -549,7 +553,7 @@ class Tico
 
         if ($passed)
         {
-            $this->router()->route($this->requestPath(true, true), $this->requestMethod());
+            $this->router()->route($this->requestPath(true, $this->option('case_insensitive_uris')), $this->requestMethod());
         }
 
         if (! empty($this->Middleware->after))

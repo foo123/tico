@@ -6,7 +6,7 @@
 
 $__DIR__ = dirname(__FILE__);
 
-$uri = urldecode(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
+$uri = /*urldecode(*/parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH)/*)*/;
 
 if ($uri === '/index.php') $uri = '/';
 
