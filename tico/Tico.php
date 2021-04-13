@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.6.7
+* @version 1.7.0
 * https://github.com/foo123/tico
 *
 */
@@ -10,7 +10,7 @@
 if (! defined('TICO')) define('TICO', dirname(__FILE__));
 class Tico
 {
-    const VERSION = '1.6.7';
+    const VERSION = '1.7.0';
 
     public $Loader = null;
     public $Router = null;
@@ -27,6 +27,8 @@ class Tico
     public $Option = array();
     public $Data = array();
     public $Middleware = null;
+    public $Subdomains = array();
+    private $_onSubdomain = null;
 
     public function __construct($baseUrl = '', $basePath = '')
     {
@@ -168,12 +170,20 @@ class Tico
         return $this->Loader;
     }
 
-    public function router()
+    public function router($new = false)
     {
-        if ($this->Router) return $this->Router;
-        if (! class_exists('Dromeo', false)) include(TICO . '/Dromeo.php');
-        $this->Router = new Dromeo();
-        return $this->Router;
+        if (true === $new)
+        {
+            if (! class_exists('Dromeo', false)) include(TICO . '/Dromeo.php');
+            return new Dromeo();
+        }
+        else
+        {
+            if ($this->Router) return $this->Router;
+            if (! class_exists('Dromeo', false)) include(TICO . '/Dromeo.php');
+            $this->Router = new Dromeo();
+            return $this->Router;
+        }
     }
 
     public function request(/*$req*/)
@@ -361,6 +371,15 @@ class Tico
         return rtrim($webroot, '/\\') . (strlen($path) ? (DIRECTORY_SEPARATOR . $path) : '');
     }
 
+    public function duri()
+    {
+        $args = func_get_args();
+        $subdomain = array_shift($args);
+        list($scheme, $host, $port, $path) = $this->_parseUrl($this->BaseUrl, '');
+        $uri = ltrim(implode('', $args), '/');
+        return (false === strpos($uri, '://', 0) ? ($scheme . '://' . $subdomain . '.' . $host . (strlen($port) ? (':' . $port) : '') . $path . (strlen($uri) ? '/' : '')) : '') . $uri;
+    }
+
     public function uri()
     {
         $uri = ltrim(implode('', func_get_args( )), '/');
@@ -456,14 +475,60 @@ class Tico
         return $withquery ? $current_url_qs : $current_url;
     }
 
+    private function _parseUrl($baseUrl, $defaultPath = '', $caseInsensitive = false)
+    {
+        /*if (false !== ($p=strpos(str_replace('://', ':%%', $baseUrl), '/')))
+        {
+            $domain = substr($baseUrl, 0, $p);
+            $path = trim(substr($baseUrl, $p));
+        }
+        else
+        {
+            $domain = $baseUrl;
+            $path = '';
+        }
+        if (false !== ($p=strpos($domain, '://')))
+        {
+            $scheme = substr($domain, 0, $p+3);
+            $domain = substr($domain, $p+3);
+        }
+        else
+        {
+            $scheme = 'http://';
+        }*/
+        $parts = parse_url($baseUrl);
+        $scheme = isset($parts['scheme']) ? $parts['scheme'] : 'http';
+        $host = isset($parts['host']) ? $parts['host'] : '';
+        $port = (string)(isset($parts['port']) ? $parts['port'] : '');
+        $path = isset($parts['path']) ? $parts['path'] : '';
+        if (! strlen($path)) $path = $defaultPath;
+        if ($caseInsensitive)
+        {
+            $scheme = strtolower($scheme);
+            $host = strtolower($host);
+            $path = strtolower($path);
+        }
+        return array($scheme, $host, $port, $path);
+    }
+
+    public function requestSubdomain($caseInsensitive = true)
+    {
+        $currentHost = $this->request()->headers->get('HOST'); // $_SERVER['HTTP_HOST'];
+        list($scheme, $host, $port, $path) = $this->_parseUrl($this->BaseUrl, '', $caseInsensitive);
+        $subdomain = trim(preg_replace('#\.' . preg_quote($host, '#') . '$#i', '', $currentHost));
+        if ($subdomain === $currentHost) $subdomain = '';
+        if ($caseInsensitive) $subdomain = strtolower($subdomain);
+        return $subdomain;
+    }
+
     public function requestPath($strip = true, $caseInsensitive = true)
     {
         $request_uri = /*isset($_SERVER['REQUEST_URI']) ? */strtok(strtok($this->request()->getRequestUri(), '?'), '#')/* : ''*/;
 
-        if ($strip && false !== ($p=strpos(str_replace('://', ':%%', $this->BaseUrl), '/')))
+        if ($strip)
         {
-            $base_uri = substr(strtolower($this->BaseUrl), $p);
-            if (0 === strpos(strtolower($request_uri), $base_uri))
+            list($scheme, $host, $port, $base_uri) = $this->_parseUrl($this->BaseUrl, '');
+            if (strlen($base_uri) && (0 === strpos(strtolower($request_uri), strtolower($base_uri))))
                 $request_uri = substr($request_uri, strlen($base_uri));
         }
         // remove trailing slash
@@ -507,10 +572,11 @@ class Tico
 
     public function on($method, $route, $handler = null)
     {
+        $router = !empty($this->_onSubdomain) ? $this->Subdomains[$this->_onSubdomain] : $this->router();
         if (false === $method)
         {
             $handler = $route;
-            $this->router()->fallback(function($route) use ($handler) {
+            $router->fallback(function($route) use ($handler) {
                 return call_user_func($handler, false);
             });
         }
@@ -526,8 +592,22 @@ class Tico
             $route['handler'] = function($route) use ($handler) {
                 return call_user_func($handler, $route['data']);
             };
-            $this->router()->on($route);
+            $router->on($route);
         }
+        return $this;
+    }
+
+    public function onSubdomain($subdomain)
+    {
+        $this->_onSubdomain = (string)$subdomain;
+        if (! isset($this->Subdomains[$this->_onSubdomain]))
+            $this->Subdomains[$this->_onSubdomain] = $this->router(true);
+        return $this;
+    }
+
+    public function onMain()
+    {
+        $this->_onSubdomain = null;
         return $this;
     }
 
@@ -553,7 +633,21 @@ class Tico
 
         if ($passed)
         {
-            $this->router()->route($this->requestPath(true, $this->option('case_insensitive_uris')), $this->requestMethod());
+            $requestSubdomain = $this->requestSubdomain($this->option('case_insensitive_uris'));
+            $requestPath = $this->requestPath(true, $this->option('case_insensitive_uris'));
+            $requestMethod = $this->requestMethod();
+
+            if (strlen($requestSubdomain) && (isset($this->Subdomains[$requestSubdomain]) || isset($this->Subdomains['*'])))
+            {
+                if (isset($this->Subdomains[$requestSubdomain]))
+                    $this->Subdomains[$requestSubdomain]->route($requestPath, $requestMethod);
+                else
+                    $this->Subdomains['*']->route($requestPath, $requestMethod);
+            }
+            else
+            {
+                $this->router()->route($requestPath, $requestMethod);
+            }
         }
 
         if (! empty($this->Middleware->after))

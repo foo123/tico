@@ -1,6 +1,6 @@
 # tico
 
-Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.6.7)
+Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.7.0)
 
 
 **Uses:**
@@ -26,13 +26,17 @@ class MyModel
 }
 
 tico('http://localhost:8000', ROOT)
+    // some options
     ->option('webroot', ROOT)
     ->option('views', array(tico()->path('/views')))
     ->option('case_insensitive_uris', true)
+
     //->set('model', new MyModel()) // simple dependency injection container
     ->set('model', function( ) {
         return new MyModel();
-    }) // container supports lazy factory-like functions 
+    }) // container supports lazy factory-like functions
+
+    // middleware functionality
     ->middleware(function( $next ) {
 
         // eg check if user is authenticated,
@@ -60,59 +64,87 @@ tico('http://localhost:8000', ROOT)
             $next();
 
     })
-    ->on('*', '/', function( ) {
 
-        tico()->output(
-            array('title' => 'Demo Index'),
-            'index.tpl.php'
-        );
 
-    })
-    ->on(array('get', 'post'), '/hello/{:msg}', function( $params ) {
+    // can handle subdomains from same script, as long as subdomain handling is directed to this file
+    /*
+    ->onSubdomain('foo') // on "foo." subdomain
+    //->onSubdomain('*') // on any subdomain
+        ->on('*', '/', function( ) {
 
-        $session = tico()->request()->getSession();
-        $session->set('count', $session->get('count')+1);
-        tico()->output(
-            array(
-                'title' => 'Hello!',
-                'msg' => $params['msg'],
-                'count'=> $session->get('count')
-            ),
-            'hello.tpl.php'
-        );
+            tico()->output(
+                array('title' => 'Demo Subdomain Index'),
+                'foo/index.tpl.php'
+            );
 
-    })
-    ->on('*', '/json/api', function( ) {
+        })
+        ->on(false, function( ) {
 
-        tico()->output(array(
-            'param1' => '123',
-            'param2' => '456',
-            'param3' => '789'
-        ), 'json');
+            tico()->output(
+                array(),
+                'foo/404.tpl.php',
+                array('StatusCode' => 404)
+            );
 
-    })
-    ->on('*', '/download', function( ) {
+        })
+    */
 
-        tico()->output(
-            tico()->path('/file.txt'),
-            'file'
-        );
+    //->onMain() // on main domain
+        ->on('*', '/', function( ) {
 
-    })
-    ->on('*', '/redirect', function( ) {
+            tico()->output(
+                array('title' => 'Demo Index'),
+                'index.tpl.php'
+            );
 
-        tico()->redirect(tico()->uri('/'), 302);
+        })
+        ->on(array('get', 'post'), '/hello/{:msg}', function( $params ) {
 
-    })
-    ->on(false, function( ) {
+            $session = tico()->request()->getSession();
+            $session->set('count', $session->get('count')+1);
+            tico()->output(
+                array(
+                    'title' => 'Hello!',
+                    'msg' => $params['msg'],
+                    'count'=> $session->get('count')
+                ),
+                'hello.tpl.php'
+            );
 
-        tico()->output(
-            array(),
-            '404.tpl.php',
-            array('StatusCode' => 404)
-        );
+        })
+        ->on('*', '/json/api', function( ) {
 
-    })
+            tico()->output(array(
+                'param1' => '123',
+                'param2' => '456',
+                'param3' => '789'
+            ), 'json');
+
+        })
+        ->on('*', '/download', function( ) {
+
+            tico()->output(
+                tico()->path('/file.txt'),
+                'file'
+            );
+
+        })
+        ->on('*', '/redirect', function( ) {
+
+            tico()->redirect(tico()->uri('/'), 302);
+
+        })
+        ->on(false, function( ) {
+
+            tico()->output(
+                array(),
+                '404.tpl.php',
+                array('StatusCode' => 404)
+            );
+
+        })
+
+    // middlewares are same for main domain and all subdomains
     ->middleware(function( $next ) {
 
         // post process, eg create cache files from response
@@ -122,6 +154,7 @@ tico('http://localhost:8000', ROOT)
         }
 
     }, 'after')
+    
     ->serve()
 ;
 ```
