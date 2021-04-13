@@ -89,7 +89,7 @@ tico('http://localhost:8000', ROOT)
         })
     */
 
-    //->onMain() // on main domain
+    //->onSubdomain(false) // on main domain
         ->on('*', '/', function( ) {
 
             tico()->output(

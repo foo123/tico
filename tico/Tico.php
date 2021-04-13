@@ -572,7 +572,7 @@ class Tico
 
     public function on($method, $route, $handler = null)
     {
-        $router = !empty($this->_onSubdomain) ? $this->Subdomains[$this->_onSubdomain] : $this->router();
+        $router = $this->_onSubdomain ? $this->Subdomains[$this->_onSubdomain] : $this->router();
         if (false === $method)
         {
             $handler = $route;
@@ -599,15 +599,16 @@ class Tico
 
     public function onSubdomain($subdomain)
     {
-        $this->_onSubdomain = (string)$subdomain;
-        if (! isset($this->Subdomains[$this->_onSubdomain]))
-            $this->Subdomains[$this->_onSubdomain] = $this->router(true);
-        return $this;
-    }
-
-    public function onMain()
-    {
-        $this->_onSubdomain = null;
+        if (false === $subdomain)
+        {
+            $this->_onSubdomain = null;
+        }
+        else
+        {
+            $this->_onSubdomain = (string)$subdomain;
+            if (! isset($this->Subdomains[$this->_onSubdomain]))
+                $this->Subdomains[$this->_onSubdomain] = $this->router(true);
+        }
         return $this;
     }
 
