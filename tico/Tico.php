@@ -371,10 +371,11 @@ class Tico
         return rtrim($webroot, '/\\') . (strlen($path) ? (DIRECTORY_SEPARATOR . $path) : '');
     }
 
-    public function duri()
+    public function uri2()
     {
         $args = func_get_args();
         $subdomain = array_shift($args);
+        if (false === $subdomain) return call_user_func_array(array($this, 'uri'), $args);
         list($scheme, $host, $port, $path) = $this->_parseUrl($this->BaseUrl, '');
         $uri = ltrim(implode('', $args), '/');
         return (false === strpos($uri, '://', 0) ? ($scheme . '://' . $subdomain . '.' . $host . (strlen($port) ? (':' . $port) : '') . $path . (strlen($uri) ? '/' : '')) : '') . $uri;
@@ -386,9 +387,16 @@ class Tico
         return (false === strpos($uri, '://', 0) ? ($this->BaseUrl . (strlen($uri) ? '/' : '')) : '') . $uri;
     }
 
-    public function route($route, $params = array(), $strict = false)
+    public function route($route, $params = array(), $strict = false, $subdomain = false)
     {
-        return $this->uri($this->router()->make($route, $params, $strict));
+        if (false !== $subdomain && isset($this->Subdomains[$subdomain]))
+        {
+            return $this->uri2($subdomain, $this->Subdomains[$subdomain]->make($route, $params, $strict));
+        }
+        else
+        {
+            return $this->uri($this->router()->make($route, $params, $strict));
+        }
     }
 
     public function locale($l, $lang)
