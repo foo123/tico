@@ -1,6 +1,6 @@
 # tico
 
-Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.7.0)
+Tiny, super-simple but versatile quasi-MVC web framework for PHP (v.1.8.0)
 
 
 **Uses:**
@@ -66,6 +66,29 @@ tico('http://localhost:8000', ROOT)
     })
 
 
+    // can handle other ports from same script, as long as handling is directed to this file
+    /*
+    ->onPort(4040) // on :4040 port
+    //->onPort('*') // on any port
+        ->on('*', '/', function( ) {
+
+            tico()->output(
+                array('title' => 'Demo Port Index'),
+                'foo/index.tpl.php'
+            );
+
+        })
+        ->on(false, function( ) {
+
+            tico()->output(
+                array(),
+                'foo/404.tpl.php',
+                array('StatusCode' => 404)
+            );
+
+        })
+    */
+    
     // can handle subdomains from same script, as long as subdomain handling is directed to this file
     /*
     ->onSubdomain('foo') // on "foo." subdomain
@@ -89,7 +112,7 @@ tico('http://localhost:8000', ROOT)
         })
     */
 
-    //->onSubdomain(false) // on main domain
+    //->onSubdomain(false) // on main domain / port
         ->on('*', '/', function( ) {
 
             tico()->output(
@@ -144,7 +167,7 @@ tico('http://localhost:8000', ROOT)
 
         })
 
-    // middlewares are same for main domain and all subdomains
+    // middlewares are same for main domain and all subdomains and all ports
     ->middleware(function( $next ) {
 
         // post process, eg create cache files from response

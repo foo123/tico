@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.7.0
+* @version 1.8.0
 * https://github.com/foo123/tico
 *
 */
@@ -10,7 +10,7 @@
 if (! defined('TICO')) define('TICO', dirname(__FILE__));
 class Tico
 {
-    const VERSION = '1.7.0';
+    const VERSION = '1.8.0';
 
     public $Loader = null;
     public $Router = null;
@@ -27,8 +27,8 @@ class Tico
     public $Option = array();
     public $Data = array();
     public $Middleware = null;
-    public $Subdomains = array();
-    private $_onSubdomain = null;
+    public $SubdomainsPorts = array();
+    private $_onSubdomainPort = null;
 
     public function __construct($baseUrl = '', $basePath = '')
     {
@@ -374,11 +374,31 @@ class Tico
     public function uri2()
     {
         $args = func_get_args();
-        $subdomain = array_shift($args);
-        if (false === $subdomain) return call_user_func_array(array($this, 'uri'), $args);
-        list($scheme, $host, $port, $path) = $this->_parseUrl($this->BaseUrl, '');
+        $params = array_shift($args);
+        $subdomain = '';
+        $port = '';
+        if (is_string($params))
+        {
+            if (':' === substr($params, 0, 1))
+                $port = substr($params, 1);
+            else
+                $subdomain = $params;
+        }
+        elseif (is_numeric($params))
+        {
+            $port = (string)$params;
+        }
+        elseif (is_array($params))
+        {
+            $subdomain = isset($params['subdomain']) ? (string)$params['subdomain'] : '';
+            $port = isset($params['port']) ? (string)$params['port'] : '';
+        }
+        if ('' === $subdomain && '' === $port) return call_user_func_array(array($this, 'uri'), $args);
+        list($scheme, $host, $port0, $path) = $this->_parseUrl($this->BaseUrl, '');
+        if (strlen($subdomain)) $host = $subdomain . '.' . $host;
+        if ('' === $port) $port = $port0;
         $uri = ltrim(implode('', $args), '/');
-        return (false === strpos($uri, '://', 0) ? ($scheme . '://' . $subdomain . '.' . $host . (strlen($port) ? (':' . $port) : '') . $path . (strlen($uri) ? '/' : '')) : '') . $uri;
+        return (false === strpos($uri, '://', 0) ? ($scheme . '://' . $host . (strlen($port) ? (':' . $port) : '') . $path . (strlen($uri) ? '/' : '')) : '') . $uri;
     }
 
     public function uri()
@@ -387,11 +407,11 @@ class Tico
         return (false === strpos($uri, '://', 0) ? ($this->BaseUrl . (strlen($uri) ? '/' : '')) : '') . $uri;
     }
 
-    public function route($route, $params = array(), $strict = false, $subdomain = false)
+    public function route($route, $params = array(), $strict = false, $subdomainPort = false)
     {
-        if (false !== $subdomain && isset($this->Subdomains[$subdomain]))
+        if (false !== $subdomainPort && isset($this->SubdomainsPorts[$subdomainPort]))
         {
-            return $this->uri2($subdomain, $this->Subdomains[$subdomain]->make($route, $params, $strict));
+            return $this->uri2($subdomainPort, $this->Subdomains[$subdomainPort]->make($route, $params, $strict));
         }
         else
         {
@@ -519,6 +539,11 @@ class Tico
         return array($scheme, $host, $port, $path);
     }
 
+    public function requestPort()
+    {
+        return (string)$this->request()->getPort(); // $_SERVER['SERVER_PORT'];
+    }
+
     public function requestSubdomain($caseInsensitive = true)
     {
         $currentHost = $this->request()->headers->get('HOST'); // $_SERVER['HTTP_HOST'];
@@ -580,7 +605,7 @@ class Tico
 
     public function on($method, $route, $handler = null)
     {
-        $router = $this->_onSubdomain ? $this->Subdomains[$this->_onSubdomain] : $this->router();
+        $router = $this->_onSubdomainPort ? $this->SubdomainsPorts[$this->_onSubdomainPort] : $this->router();
         if (false === $method)
         {
             $handler = $route;
@@ -605,17 +630,32 @@ class Tico
         return $this;
     }
 
+    public function onPort($port)
+    {
+        if (false === $port)
+        {
+            $this->_onSubdomainPort = null;
+        }
+        else
+        {
+            $this->_onSubdomainPort = ':' . (string)$port;
+            if (! isset($this->SubdomainsPorts[$this->_onSubdomainPort]))
+                $this->SubdomainsPorts[$this->_onSubdomainPort] = $this->router(true);
+        }
+        return $this;
+    }
+
     public function onSubdomain($subdomain)
     {
         if (false === $subdomain)
         {
-            $this->_onSubdomain = null;
+            $this->_onSubdomainPort = null;
         }
         else
         {
-            $this->_onSubdomain = (string)$subdomain;
-            if (! isset($this->Subdomains[$this->_onSubdomain]))
-                $this->Subdomains[$this->_onSubdomain] = $this->router(true);
+            $this->_onSubdomainPort = (string)$subdomain;
+            if (! isset($this->SubdomainsPorts[$this->_onSubdomainPort]))
+                $this->SubdomainsPorts[$this->_onSubdomainPort] = $this->router(true);
         }
         return $this;
     }
@@ -642,18 +682,28 @@ class Tico
 
         if ($passed)
         {
+            $requestPort = ':' . $this->requestPort();
             $requestSubdomain = $this->requestSubdomain($this->option('case_insensitive_uris'));
             $requestPath = $this->requestPath(true, $this->option('case_insensitive_uris'));
             $requestMethod = $this->requestMethod();
 
-            if (strlen($requestSubdomain) && (isset($this->Subdomains[$requestSubdomain]) || isset($this->Subdomains['*'])))
+            if (1 < strlen($requestPort) && isset($this->SubdomainsPorts[$requestPort]))
             {
-                if (isset($this->Subdomains[$requestSubdomain]))
-                    $this->Subdomains[$requestSubdomain]->route($requestPath, $requestMethod);
-                else
-                    $this->Subdomains['*']->route($requestPath, $requestMethod);
+                $this->SubdomainsPorts[$requestPort]->route($requestPath, $requestMethod);
             }
-            else
+            elseif (strlen($requestSubdomain) && isset($this->SubdomainsPorts[$requestSubdomain]))
+            {
+                $this->SubdomainsPorts[$requestSubdomain]->route($requestPath, $requestMethod);
+            }
+            elseif (isset($this->SubdomainsPorts[':*'])) // any port
+            {
+                $this->SubdomainsPorts[':*']->route($requestPath, $requestMethod);
+            }
+            elseif (isset($this->SubdomainsPorts['*'])) // any subdomain
+            {
+                $this->SubdomainsPorts['*']->route($requestPath, $requestMethod);
+            }
+            else // main domain/port
             {
                 $this->router()->route($requestPath, $requestMethod);
             }
