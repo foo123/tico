@@ -1,7 +1,7 @@
 <?php
 
 define('ROOT', dirname(__FILE__));
-include(ROOT.'/../tico/Tico.php');
+include(ROOT . '/../tico/Tico.php');
 
 class MyModel
 {
@@ -16,10 +16,10 @@ tico('http://localhost:8000', ROOT)
     ->option('views', [tico()->path('/views')])
     ->option('case_insensitive_uris', true)
     //->set('model', new MyModel()) // simple dependency injection container
-    ->set('model', function( ) {
+    ->set('model', function() {
         return new MyModel();
-    }) // container supports lazy factory-like functions 
-    ->middleware(function( $next ) {
+    }) // container supports lazy factory-like functions
+    ->middleware(function($next) {
 
         // eg check if user is authenticated,
         // for example check user cookie and set user var appropriately
@@ -28,11 +28,11 @@ tico('http://localhost:8000', ROOT)
         $session = new HttpSession(/*array(..)*/);
         tico()->request()->setSession($session);
         $session->start();
-        if (! $session->has('count')) $session->set('count', 0);
+        if (!$session->has('count')) $session->set('count', 0);
         $next();
 
     })
-    ->middleware(function( $next ) {
+    ->middleware(function($next) {
 
         // if this condition is met, abort current request, eg user is not authenticated
         if (('guest' == tico()->get('user')) && ('/hello/foo' == tico()->requestPath()))
@@ -46,7 +46,7 @@ tico('http://localhost:8000', ROOT)
             $next();
 
     })
-    ->on('*', '/', function( ) {
+    ->on('*', '/', function() {
 
         tico()->output(
             // streamed output
@@ -57,7 +57,7 @@ tico('http://localhost:8000', ROOT)
         );
 
     })
-    ->on(array('get', 'post'), '/hello/{:msg}', function( $params ) {
+    ->on(array('get', 'post'), '/hello/{:msg}', function($params) {
 
         $session = tico()->request()->getSession();
         $session->set('count', $session->get('count')+1);
@@ -71,7 +71,36 @@ tico('http://localhost:8000', ROOT)
         );
 
     })
-    ->on('*', '/json/api', function( ) {
+    ->onGroup('/foo', function() {
+
+        // group routes under common prefix
+        tico()
+            // /foo/moo
+            ->on('*', '/moo', function() {
+                tico()->output(
+                    array(
+                        'title' => 'Group Route',
+                        'msg' => 'Group Route /foo/moo',
+                        'count'=> 0
+                    ),
+                    'hello.tpl.php'
+                );
+            })
+            // /foo/koo
+            ->on('*', '/koo', function() {
+                tico()->output(
+                    array(
+                        'title' => 'Group Route',
+                        'msg' => 'Group Route /foo/koo',
+                        'count'=> 0
+                    ),
+                    'hello.tpl.php'
+                );
+            })
+        ;
+
+    })
+    ->on('*', '/json/api', function() {
 
         tico()->output(array(
             'param1' => '123',
@@ -80,7 +109,7 @@ tico('http://localhost:8000', ROOT)
         ), 'json');
 
     })
-    ->on('*', '/download', function( ) {
+    ->on('*', '/download', function() {
 
         tico()->output(
             tico()->path('/file.txt'),
@@ -88,12 +117,12 @@ tico('http://localhost:8000', ROOT)
         );
 
     })
-    ->on('*', '/redirect', function( ) {
+    ->on('*', '/redirect', function() {
 
         tico()->redirect(tico()->uri('/'), 302);
 
     })
-    ->on(false, function( ) {
+    ->on(false, function() {
 
         tico()->output(
             array(),
@@ -102,7 +131,7 @@ tico('http://localhost:8000', ROOT)
         );
 
     })
-    ->middleware(function( $next ) {
+    ->middleware(function($next) {
 
         // post process, eg create cache files from response
         if ((200 == tico()->response()->getStatusCode()) && 'text/html'==tico()->response()->headers->get('Content-Type') && !tico()->response()->getFile() && !tico()->response()->getCallback())
