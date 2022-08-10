@@ -584,9 +584,9 @@ class Tico
         return array($scheme, $host, $port, $path);
     }
 
-    public function requestPort()
+    public function requestPort($onlyIfSet = false)
     {
-        return (string)$this->request()->getPort();
+        return (string)$this->request()->getPort($onlyIfSet);
     }
 
     public function requestSubdomain($caseInsensitive = true)
@@ -767,12 +767,12 @@ class Tico
 
         if ($passed)
         {
-            $requestPort = ':' . $this->requestPort();
+            $requestPort = ':' . $this->requestPort(true);
             $requestSubdomain = $this->requestSubdomain($this->option('case_insensitive_uris'));
             $requestPath = $this->requestPath(true, $this->option('case_insensitive_uris'));
             $requestMethod = $this->requestMethod();
 
-            if (1 < strlen($requestPort) && isset($this->SubdomainsPorts[$requestPort]))
+            if ((1 < strlen($requestPort)) && isset($this->SubdomainsPorts[$requestPort]))
             {
                 $this->SubdomainsPorts[$requestPort]->route($requestPath, $requestMethod);
             }
@@ -780,11 +780,11 @@ class Tico
             {
                 $this->SubdomainsPorts[$requestSubdomain]->route($requestPath, $requestMethod);
             }
-            elseif (isset($this->SubdomainsPorts[':*'])) // any port
+            elseif ((1 < strlen($requestPort)) && isset($this->SubdomainsPorts[':*'])) // any port
             {
                 $this->SubdomainsPorts[':*']->route($requestPath, $requestMethod);
             }
-            elseif (isset($this->SubdomainsPorts['*'])) // any subdomain
+            elseif (strlen($requestSubdomain) && isset($this->SubdomainsPorts['*'])) // any subdomain
             {
                 $this->SubdomainsPorts['*']->route($requestPath, $requestMethod);
             }

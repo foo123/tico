@@ -2011,7 +2011,7 @@ class HttpRequest
      *
      * @return int|string can be a string if fetched from the server bag
      */
-    public function getPort()
+    public function getPort($onlyIfSet = false)
     {
         if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_PORT)) {
             $host = $host[0];
@@ -2031,7 +2031,7 @@ class HttpRequest
             return (int) substr($host, $pos + 1);
         }
 
-        return 'https' === $this->getScheme() ? 443 : 80;
+        return $onlyIfSet ? null : ('https' === $this->getScheme() ? 443 : 80);
     }
 
     /**

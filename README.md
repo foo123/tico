@@ -86,134 +86,140 @@ tico('http://localhost:8000', ROOT)
 
 
     // can handle other ports from same script, as long as handling is directed to this file
-    /*
-    ->onPort(4040) // on :4040 port
-    //->onPort('*') // on any port
-        ->on('*', '/', function() {
+    // on :4040 port, '*' means on any port
+    ->onPort(4040, function() {
 
-            tico()->output(
-                array('title' => 'Demo Port Index'),
-                'foo/index.tpl.php'
-            );
+        tico()
+            ->on('*', '/', function() {
 
-        })
-        ->on(false, function() {
+                tico()->output(
+                    array('title' => 'Demo Port Index'),
+                    '4040/index.tpl.php'
+                );
 
-            tico()->output(
-                array(),
-                'foo/404.tpl.php',
-                array('StatusCode' => 404)
-            );
+            })
+            ->on(false, function() {
 
-        })
-    */
+                tico()->output(
+                    array(),
+                    '4040/404.tpl.php',
+                    array('StatusCode' => 404)
+                );
+
+            })
+        ;
+
+    })
 
     // can handle subdomains from same script, as long as subdomain handling is directed to this file
-    /*
-    ->onSubdomain('foo') // on "foo." subdomain
-    //->onSubdomain('*') // on any subdomain
-        ->on('*', '/', function() {
+    // on "foo." subdomain, '*' means on any subdomain
+    ->onSubdomain('foo', function() {
 
-            tico()->output(
-                array('title' => 'Demo Subdomain Index'),
-                'foo/index.tpl.php'
-            );
+        tico()
+            ->on('*', '/', function() {
 
-        })
-        ->on(false, function() {
+                tico()->output(
+                    array('title' => 'Demo Subdomain Index'),
+                    'foo/index.tpl.php'
+                );
 
-            tico()->output(
-                array(),
-                'foo/404.tpl.php',
-                array('StatusCode' => 404)
-            );
+            })
+            ->on(false, function() {
 
-        })
-    */
+                tico()->output(
+                    array(),
+                    'foo/404.tpl.php',
+                    array('StatusCode' => 404)
+                );
 
-    //->onSubdomain(false) // on main domain / port
-        ->on('*', '/', function() {
+            })
+        ;
 
-            tico()->output(
-                array('title' => 'Demo Index'),
-                'index.tpl.php'
-            );
+    })
 
-        })
-        ->on(array('get', 'post'), '/hello/{:msg}', function($params) {
+    // on main domain / port
+    ->on('*', '/', function() {
 
-            $session = tico()->request()->getSession();
-            $session->set('count', $session->get('count')+1);
-            tico()->output(
-                array(
-                    'title' => 'Hello!',
-                    'msg' => $params['msg'],
-                    'count'=> $session->get('count')
-                ),
-                'hello.tpl.php'
-            );
+        tico()->output(
+            array('title' => 'Demo Index'),
+            'index.tpl.php'
+        );
 
-        })
-        // group routes under common prefix
-        ->onGroup('/foo', function() {
+    })
+    ->on(['get', 'post'], '/hello/{:msg}', function($params) {
 
-            tico()
-                // /foo/moo
-                ->on('*', '/moo', function() {
-                    tico()->output(
-                        array(
-                            'title' => 'Group Route',
-                            'msg' => 'Group Route /foo/moo',
-                            'count'=> 0
-                        ),
-                        'hello.tpl.php'
-                    );
-                })
-                // /foo/koo
-                ->on('*', '/koo', function() {
-                    tico()->output(
-                        array(
-                            'title' => 'Group Route',
-                            'msg' => 'Group Route /foo/koo',
-                            'count'=> 0
-                        ),
-                        'hello.tpl.php'
-                    );
-                })
-            ;
+        $session = tico()->request()->getSession();
+        $session->set('count', $session->get('count')+1);
+        tico()->output(
+            array(
+                'title' => 'Hello!',
+                'msg' => $params['msg'],
+                'count'=> $session->get('count')
+            ),
+            'hello.tpl.php'
+        );
 
-        })
-        ->on('*', '/json/api', function() {
+    })
+    // group routes under common prefix
+    ->onGroup('/foo', function() {
 
-            tico()->output(array(
-                'param1' => '123',
-                'param2' => '456',
-                'param3' => '789'
-            ), 'json');
+        tico()
+            // /foo/moo
+            ->on('*', '/moo', function() {
+                tico()->output(
+                    array(
+                        'title' => 'Group Route',
+                        'msg' => 'Group Route /foo/moo',
+                        'count'=> 0
+                    ),
+                    'hello.tpl.php'
+                );
+            })
+            // /foo/koo
+            ->on('*', '/koo', function() {
+                tico()->output(
+                    array(
+                        'title' => 'Group Route',
+                        'msg' => 'Group Route /foo/koo',
+                        'count'=> 0
+                    ),
+                    'hello.tpl.php'
+                );
+            })
+        ;
 
-        })
-        ->on('*', '/download', function() {
+    })
+    ->on('*', '/json/api', function() {
 
-            tico()->output(
-                tico()->path('/file.txt'),
-                'file'
-            );
+        tico()->output(array(
+            'param1' => '123',
+            'param2' => '456',
+            'param3' => '789'
+        ), 'json');
 
-        })
-        ->on('*', '/redirect', function() {
+    })
+    ->on('*', '/download', function() {
 
-            tico()->redirect(tico()->uri('/'), 302);
+        tico()->output(
+            tico()->path('/file.txt'),
+            'file'
+        );
 
-        })
-        ->on(false, function() {
+    })
+    ->on('*', '/redirect', function() {
 
-            tico()->output(
-                array(),
-                '404.tpl.php',
-                array('StatusCode' => 404)
-            );
+        tico()->redirect(tico()->uri('/'), 302);
 
-        })
+    })
+    ->on(false, function() {
+
+        tico()->output(
+            array(),
+            '404.tpl.php',
+            array('StatusCode' => 404)
+        );
+
+    })
 
     // middlewares are same for main domain and all subdomains and all ports
     ->middleware(function($next) {
