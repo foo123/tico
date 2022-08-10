@@ -695,9 +695,18 @@ class Tico
         return $this;
     }
 
-    public function onPort($port)
+    public function onPort($port, $portAssignment = null)
     {
-        if (false === $port)
+        if (is_callable($portAssignment))
+        {
+            $onSubdomainPort = $this->_onSubdomainPort;
+            $this->_onSubdomainPort = ':' . (string)$port;
+            if (!isset($this->SubdomainsPorts[$this->_onSubdomainPort]))
+                $this->SubdomainsPorts[$this->_onSubdomainPort] = $this->router(true);
+            call_user_func($portAssignment);
+            $this->_onSubdomainPort = $onSubdomainPort;
+        }
+        elseif (false === $port)
         {
             $this->_onSubdomainPort = null;
         }
@@ -710,9 +719,18 @@ class Tico
         return $this;
     }
 
-    public function onSubdomain($subdomain)
+    public function onSubdomain($subdomain, $subdomainAssignment = null)
     {
-        if (false === $subdomain)
+        if (is_callable($subdomainAssignment))
+        {
+            $onSubdomainPort = $this->_onSubdomainPort;
+            $this->_onSubdomainPort = (string)$subdomain;
+            if (!isset($this->SubdomainsPorts[$this->_onSubdomainPort]))
+                $this->SubdomainsPorts[$this->_onSubdomainPort] = $this->router(true);
+            call_user_func($subdomainAssignment);
+            $this->_onSubdomainPort = $onSubdomainPort;
+        }
+        elseif (false === $subdomain)
         {
             $this->_onSubdomainPort = null;
         }
