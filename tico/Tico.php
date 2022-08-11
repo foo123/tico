@@ -9,7 +9,7 @@
 
 if (!class_exists('Tico', false))
 {
-if (!defined('TICO')) define('TICO', dirname(__FILE__));
+define('TICO', dirname(__FILE__));
 
 class TicoValue
 {
@@ -655,18 +655,22 @@ class Tico
         {
             if (is_string($route))
             {
-                if (is_string($this->_onGroup))
-                {
-                    $route = rtrim($this->_onGroup, '/') . '/' . ltrim($route, '/');
-                }
                 $route = array('route' => $route);
             }
             $route = (array)$route;
             $route['method'] = $method;
+            if (is_string($this->_onGroup))
+            {
+                $route['route'] = rtrim(rtrim($this->_onGroup, '/') . '/' . ltrim($route['route'], '/'), '/');
+            }
             if (!isset($route['name']))
+            {
                 $route['name'] = $route['route'];
+            }
             if (!is_callable($handler) && isset($route['handler']) && is_callable($route['handler']))
+            {
                 $handler = $route['handler'];
+            }
             $route['handler'] = function($route) use ($handler) {
                 return call_user_func($handler, $route['data']);
             };
@@ -680,7 +684,7 @@ class Tico
         if (is_callable($groupAssignment))
         {
             $onGroup = $this->_onGroup;
-            $this->_onGroup = $onGroup ? (rtrim($onGroup, '/') . '/' . ltrim((string)$groupRoute, '/')) : ((string)$groupRoute);
+            $this->_onGroup = $onGroup ? rtrim(rtrim($onGroup, '/') . '/' . ltrim((string)$groupRoute, '/'), '/') : ((string)$groupRoute);
             call_user_func($groupAssignment);
             $this->_onGroup = $onGroup;
         }
