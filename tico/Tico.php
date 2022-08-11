@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.10.0
+* @version 1.11.0
 * https://github.com/foo123/tico
 *
 */
@@ -39,7 +39,7 @@ class TicoValue
 
 class Tico
 {
-    const VERSION = '1.10.0';
+    const VERSION = '1.11.0';
 
     public $Loader = null;
     public $Router = null;
@@ -65,12 +65,15 @@ class Tico
     {
         $this->BaseUrl = rtrim($baseUrl, '/');
         $this->BasePath = rtrim($basePath, '/\\');
-        $this->Middleware = (object)array('before'=>array(), 'after'=>array());
+        $this->Middleware = (object)array(
+            'before' => array(),
+            'after' => array()
+        );
 
         // set some default options
         $this->option('webroot', $this->BasePath);
-        $this->option('views', array(''));
         $this->option('case_insensitive_uris', true);
+        $this->option('views', array(''));
     }
 
     protected function _fixServerVars()
@@ -312,8 +315,16 @@ class Tico
 
     public function tpl($tpl, $data = array())
     {
-        if (!class_exists('InTpl', false)) include(TICO . '/InTpl.php');
-        return InTpl::Tpl($tpl, (array)$this->option('views'))->render($data);
+        $tpl_render = $this->option('tpl_render');
+        if (is_callable($tpl_render))
+        {
+            return call_user_func($tpl_render, $tpl, $data, (array)$this->option('views'));
+        }
+        else
+        {
+            if (!class_exists('InTpl', false)) include(TICO . '/InTpl.php');
+            return InTpl::Tpl($tpl, (array)$this->option('views'))->render($data);
+        }
     }
 
     public function output($data, $type = 'html', $headers = array())
@@ -442,7 +453,7 @@ class Tico
 
     public function path()
     {
-        $path = ltrim(implode('', func_get_args( )), '/\\');
+        $path = ltrim(implode('', func_get_args()), '/\\');
         return $this->BasePath . (strlen($path) ? (DIRECTORY_SEPARATOR . $path) : '');
     }
 
@@ -771,30 +782,34 @@ class Tico
 
         if ($passed)
         {
-            $requestPort = ':' . $this->requestPort(true);
-            $requestSubdomain = $this->requestSubdomain($this->option('case_insensitive_uris'));
-            $requestPath = $this->requestPath(true, $this->option('case_insensitive_uris'));
+            $caseInsensitiveUris = $this->option('case_insensitive_uris');
+            $requestPortOrig = $this->requestPort(true);
+            $requestPort = ':' . (null == $requestPortOrig ? '' : (string)$requestPortOrig);
+            $requestSubdomain = $this->requestSubdomain($caseInsensitiveUris);
             $requestMethod = $this->requestMethod();
+            $requestPathOrig = $this->requestPath(true, false);
+            $requestPath = $caseInsensitiveUris ? strtolower($requestPathOrig) : $requestPathOrig;
+            $originalParamsKey = $this->option('original_params_key'); // default null
 
             if ((1 < strlen($requestPort)) && isset($this->SubdomainsPorts[$requestPort]))
             {
-                $this->SubdomainsPorts[$requestPort]->route($requestPath, $requestMethod);
+                $this->SubdomainsPorts[$requestPort]->route($requestPath, $requestMethod, true, $requestPathOrig, $originalParamsKey);
             }
             elseif (strlen($requestSubdomain) && isset($this->SubdomainsPorts[$requestSubdomain]))
             {
-                $this->SubdomainsPorts[$requestSubdomain]->route($requestPath, $requestMethod);
+                $this->SubdomainsPorts[$requestSubdomain]->route($requestPath, $requestMethod, true, $requestPathOrig, $originalParamsKey);
             }
             elseif ((1 < strlen($requestPort)) && isset($this->SubdomainsPorts[':*'])) // any port
             {
-                $this->SubdomainsPorts[':*']->route($requestPath, $requestMethod);
+                $this->SubdomainsPorts[':*']->route($requestPath, $requestMethod, true, $requestPathOrig, $originalParamsKey);
             }
             elseif (strlen($requestSubdomain) && isset($this->SubdomainsPorts['*'])) // any subdomain
             {
-                $this->SubdomainsPorts['*']->route($requestPath, $requestMethod);
+                $this->SubdomainsPorts['*']->route($requestPath, $requestMethod, true, $requestPathOrig, $originalParamsKey);
             }
             else // main domain/port
             {
-                $this->router()->route($requestPath, $requestMethod);
+                $this->router()->route($requestPath, $requestMethod, true, $requestPathOrig, $originalParamsKey);
             }
         }
 

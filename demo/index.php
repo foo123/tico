@@ -13,8 +13,8 @@ class MyModel
 
 tico('http://localhost:8000', ROOT)
     ->option('webroot', ROOT)
-    ->option('views', [tico()->path('/views')])
     ->option('case_insensitive_uris', true)
+    ->option('views', [tico()->path('/views')])
     //->set('model', new MyModel()) // simple dependency injection container
     ->set('model', function() {
         return new MyModel();
@@ -87,15 +87,31 @@ tico('http://localhost:8000', ROOT)
                 );
             })
             // /foo/koo
-            ->on('*', '/koo', function() {
-                tico()->output(
-                    array(
-                        'title' => 'Group Route',
-                        'msg' => 'Group Route /foo/koo',
-                        'count'=> 0
-                    ),
-                    'hello.tpl.php'
-                );
+            ->onGroup('/koo', function() {
+                tico()
+                    // /foo/koo
+                    ->on('*', '/', function() {
+                        tico()->output(
+                            array(
+                                'title' => 'Group Route',
+                                'msg' => 'Group Route /foo/koo',
+                                'count'=> 0
+                            ),
+                            'hello.tpl.php'
+                        );
+                    })
+                    // /foo/koo/soo
+                    ->on('*', '/soo', function() {
+                        tico()->output(
+                            array(
+                                'title' => 'Group Route',
+                                'msg' => 'Group Route /foo/koo/soo',
+                                'count'=> 0
+                            ),
+                            'hello.tpl.php'
+                        );
+                    })
+                ;
             })
         ;
 

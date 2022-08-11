@@ -1,6 +1,6 @@
 # tico
 
-Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.10.0**)
+Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.11.0**)
 
 **see also:**
 
@@ -34,7 +34,7 @@ Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.10.0**)
 
 ```php
 define('ROOT', dirname(__FILE__));
-include(ROOT.'/../tico/Tico.php');
+include(ROOT . '/../tico/Tico.php');
 
 class MyModel
 {
@@ -46,9 +46,13 @@ class MyModel
 
 tico('http://localhost:8000', ROOT)
     // some options
-    ->option('webroot', ROOT)
-    ->option('views', array(tico()->path('/views')))
-    ->option('case_insensitive_uris', true)
+    ->option('webroot', ROOT) // default
+    ->option('case_insensitive_uris', true) // default
+    ->option('views', [tico()->path('/views')])
+    /*->option('tpl_render', function($tpl, $data, $viewsFolders) {
+        // custom template renderer
+        return MyFancyTpl::render($tpl, $data);
+    })*/
 
     //->set('model', new MyModel()) // simple dependency injection container
     ->set('model', function() {
@@ -176,15 +180,31 @@ tico('http://localhost:8000', ROOT)
                 );
             })
             // /foo/koo
-            ->on('*', '/koo', function() {
-                tico()->output(
-                    array(
-                        'title' => 'Group Route',
-                        'msg' => 'Group Route /foo/koo',
-                        'count'=> 0
-                    ),
-                    'hello.tpl.php'
-                );
+            ->onGroup('/koo', function() {
+                tico()
+                    // /foo/koo
+                    ->on('*', '/', function() {
+                        tico()->output(
+                            array(
+                                'title' => 'Group Route',
+                                'msg' => 'Group Route /foo/koo',
+                                'count'=> 0
+                            ),
+                            'hello.tpl.php'
+                        );
+                    })
+                    // /foo/koo/soo
+                    ->on('*', '/soo', function() {
+                        tico()->output(
+                            array(
+                                'title' => 'Group Route',
+                                'msg' => 'Group Route /foo/koo/soo',
+                                'count'=> 0
+                            ),
+                            'hello.tpl.php'
+                        );
+                    })
+                ;
             })
         ;
 
