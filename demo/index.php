@@ -14,6 +14,7 @@ class MyModel
 tico('http://localhost:8000', ROOT)
     ->option('webroot', ROOT)
     ->option('case_insensitive_uris', true)
+    ->option('original_params_key', 'ORIG')
     ->option('views', [tico()->path('/views')])
     //->set('model', new MyModel()) // simple dependency injection container
     ->set('model', function() {
@@ -64,7 +65,7 @@ tico('http://localhost:8000', ROOT)
         tico()->output(
             array(
                 'title' => 'Hello!',
-                'msg' => $params['msg'],
+                'msg' => $params['ORIG']['msg'] /*in original case*/,
                 'count'=> $session->get('count')
             ),
             'hello.tpl.php'

@@ -738,6 +738,7 @@ class Dromeo
                         'fallback'=> false,
                         'data'=> array_merge_recursive(array(), $handler->defaults)
                     );
+                    if (is_string($originalR)) $params['route_original'] = $originalR;
                     $route->sub($match, $params['data'], $handler->types, $originalR, $originalKey);
 
                     $handler->called = 1; // handler called
