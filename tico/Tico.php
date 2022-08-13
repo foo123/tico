@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.11.0
+* @version 1.12.0
 * https://github.com/foo123/tico
 *
 */
@@ -39,7 +39,7 @@ class TicoValue
 
 class Tico
 {
-    const VERSION = '1.11.0';
+    const VERSION = '1.12.0';
 
     public $Loader = null;
     public $Router = null;
@@ -59,7 +59,6 @@ class Tico
     public $SubdomainsPorts = array();
 
     private $_onSubdomainPort = null;
-    private $_onGroup = null;
 
     public function __construct($baseUrl = '', $basePath = '')
     {
@@ -259,12 +258,16 @@ class Tico
         return $this->Loader;
     }
 
-    public function router($new = false)
+    public function router($router = false)
     {
-        if (true === $new)
+        if (true === $router)
         {
             if (!class_exists('Dromeo', false)) include(TICO . '/Dromeo.php');
             return new Dromeo();
+        }
+        elseif (is_string($router) && strlen($router))
+        {
+            return isset($this->SubdomainsPorts[$router]) ? $this->SubdomainsPorts[$router] : null;
         }
         else
         {
@@ -488,7 +491,7 @@ class Tico
             $port = isset($params['port']) ? (string)$params['port'] : '';
         }
         if ('' === $subdomain && '' === $port) return call_user_func_array(array($this, 'uri'), $args);
-        list($scheme, $host, $port0, $path) = $this->_parseUrl($this->BaseUrl, '');
+        list($scheme, $host, $port0, $path) = $this->parseUrl($this->BaseUrl, '');
         if (strlen($subdomain)) $host = $subdomain . '.' . $host;
         if ('' === $port) $port = $port0;
         $uri = ltrim(implode('', $args), '/');
@@ -503,7 +506,7 @@ class Tico
 
     public function route($route, $params = array(), $strict = false, $subdomainPort = false)
     {
-        if (false !== $subdomainPort && isset($this->SubdomainsPorts[$subdomainPort]))
+        if (is_string($subdomainPort) && isset($this->SubdomainsPorts[$subdomainPort]))
         {
             return $this->uri2($subdomainPort, $this->Subdomains[$subdomainPort]->make($route, $params, $strict));
         }
@@ -578,7 +581,7 @@ class Tico
         return $withquery ? $current_url_qs : $current_url;
     }
 
-    private function _parseUrl($baseUrl, $defaultPath = '', $caseInsensitive = false)
+    private function parseUrl($baseUrl, $defaultPath = '', $caseInsensitive = false)
     {
         $parts = parse_url($baseUrl);
         $scheme = isset($parts['scheme']) ? $parts['scheme'] : 'http';
@@ -603,7 +606,7 @@ class Tico
     public function requestSubdomain($caseInsensitive = true)
     {
         $currentHost = $this->request()->headers->get('HOST');
-        list($scheme, $host, $port, $path) = $this->_parseUrl($this->BaseUrl, '', $caseInsensitive);
+        list($scheme, $host, $port, $path) = $this->parseUrl($this->BaseUrl, '', $caseInsensitive);
         $subdomain = trim(preg_replace('#\.' . preg_quote($host, '#') . '$#i', '', $currentHost));
         if ($subdomain === $currentHost) $subdomain = '';
         if ($caseInsensitive) $subdomain = strtolower($subdomain);
@@ -616,7 +619,7 @@ class Tico
 
         if ($strip)
         {
-            list($scheme, $host, $port, $base_uri) = $this->_parseUrl($this->BaseUrl, '');
+            list($scheme, $host, $port, $base_uri) = $this->parseUrl($this->BaseUrl, '');
             if (strlen($base_uri) && (0 === strpos(strtolower($request_uri), strtolower($base_uri))))
                 $request_uri = substr($request_uri, strlen($base_uri));
         }
@@ -654,13 +657,16 @@ class Tico
 
     public function on($method, $route, $handler = null)
     {
-        $router = $this->_onSubdomainPort ? $this->SubdomainsPorts[$this->_onSubdomainPort] : $this->router();
+        $router = $this->router($this->_onSubdomainPort);
         if (false === $method)
         {
             $handler = $route;
-            $router->fallback(function($route) use ($handler) {
-                return call_user_func($handler, false);
-            });
+            if (is_callable($handler) && $router->isTop())
+            {
+                $router->fallback(function($route) use ($handler) {
+                    return call_user_func($handler, false);
+                });
+            }
         }
         else
         {
@@ -669,23 +675,26 @@ class Tico
                 $route = array('route' => $route);
             }
             $route = (array)$route;
-            $route['method'] = $method;
-            if (is_string($this->_onGroup))
-            {
-                $route['route'] = rtrim(rtrim($this->_onGroup, '/') . '/' . ltrim($route['route'], '/'), '/');
-            }
-            if (!isset($route['name']))
-            {
-                $route['name'] = $route['route'];
-            }
             if (!is_callable($handler) && isset($route['handler']) && is_callable($route['handler']))
             {
                 $handler = $route['handler'];
             }
-            $route['handler'] = function($route) use ($handler) {
-                return call_user_func($handler, $route['data']);
-            };
-            $router->on($route);
+            if (isset($route['route']) && is_callable($handler))
+            {
+                $route['method'] = $method;
+                if (('/' === $route['route']) && !$router->isTop())
+                {
+                    $route['route'] = '';
+                }
+                if (!isset($route['name']))
+                {
+                    $route['name'] = $router->key . $route['route'];
+                }
+                $route['handler'] = function($route) use ($handler) {
+                    return call_user_func($handler, $route['data']);
+                };
+                $router->on($route);
+            }
         }
         return $this;
     }
@@ -694,18 +703,60 @@ class Tico
     {
         if (is_callable($groupAssignment))
         {
-            $onGroup = $this->_onGroup;
-            $this->_onGroup = $onGroup ? rtrim(rtrim($onGroup, '/') . '/' . ltrim((string)$groupRoute, '/'), '/') : ((string)$groupRoute);
-            call_user_func($groupAssignment);
-            $this->_onGroup = $onGroup;
+            $this->router($this->_onSubdomainPort)->onGroup((string)$groupRoute, function($subRouter) use ($groupAssignment) {
+                $subdomainPort = $this->_onSubdomainPort;
+                if ($subdomainPort)
+                {
+                    $currRouter = $this->SubdomainsPorts[$subdomainPort];
+                    $this->SubdomainsPorts[$subdomainPort] = $subRouter;
+                }
+                else
+                {
+                    $currRouter = $this->Router;
+                    $this->Router = $subRouter;
+                }
+                call_user_func($groupAssignment);
+                if ($subdomainPort)
+                {
+                    $this->SubdomainsPorts[$subdomainPort] = $currRouter;
+                }
+                else
+                {
+                    $this->Router = $currRouter;
+                }
+            });
         }
         elseif (false === $groupRoute)
         {
-            $this->_onGroup = null;
+            if ($this->_onSubdomainPort)
+            {
+                $this->SubdomainsPorts[$this->_onSubdomainPort] = $this->SubdomainsPorts[$this->_onSubdomainPort]->top();
+            }
+            elseif ($this->Router)
+            {
+                $this->Router = $this->Router->top();
+            }
         }
-        else//if (false !== $groupRoute)
+        else
         {
-            $this->_onGroup = (string)$groupRoute;
+            if ($this->_onSubdomainPort)
+            {
+                $this->SubdomainsPorts[$this->_onSubdomainPort] = $this->SubdomainsPorts[$this->_onSubdomainPort]->top();
+            }
+            elseif ($this->Router)
+            {
+                $this->Router = $this->Router->top();
+            }
+            $this->router($this->_onSubdomainPort)->onGroup((string)$groupRoute, function($subRouter) {
+                if ($this->_onSubdomainPort)
+                {
+                    $this->SubdomainsPorts[$this->_onSubdomainPort] = $subRouter;
+                }
+                else
+                {
+                    $this->Router = $subRouter;
+                }
+            });
         }
         return $this;
     }
@@ -723,6 +774,10 @@ class Tico
         }
         elseif (false === $port)
         {
+            if ($this->_onSubdomainPort)
+            {
+                $this->SubdomainsPorts[$this->_onSubdomainPort] = $this->SubdomainsPorts[$this->_onSubdomainPort]->top();
+            }
             $this->_onSubdomainPort = null;
         }
         else
@@ -747,6 +802,10 @@ class Tico
         }
         elseif (false === $subdomain)
         {
+            if ($this->_onSubdomainPort)
+            {
+                $this->SubdomainsPorts[$this->_onSubdomainPort] = $this->SubdomainsPorts[$this->_onSubdomainPort]->top();
+            }
             $this->_onSubdomainPort = null;
         }
         else
