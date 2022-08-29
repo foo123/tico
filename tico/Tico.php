@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.12.0
+* @version 1.13.0
 * https://github.com/foo123/tico
 *
 */
@@ -19,7 +19,7 @@ class TicoValue
     public function __construct($value, $asIs = false)
     {
         $this->v = $value;
-        $this->isLoaded = $asIs ? true : false;
+        $this->isLoaded = (bool)$asIs;
     }
 
     public function value()
@@ -30,7 +30,7 @@ class TicoValue
             // lazy factory getter, execute only once and return whatever it returns
             if (is_callable($this->v) && (!is_object($this->v) || ($this->v instanceof Closure)))
             {
-                $this->v = call_user_func($this->v);
+                $this->v = @call_user_func($this->v);
             }
         }
         return $this->v;
@@ -39,7 +39,7 @@ class TicoValue
 
 class Tico
 {
-    const VERSION = '1.12.0';
+    const VERSION = '1.13.0';
 
     public $Loader = null;
     public $Router = null;
@@ -48,10 +48,6 @@ class Tico
 
     public $BaseUrl = '';
     public $BasePath = '';
-
-    public $LanguagePluralForm = array();
-    public $Language = array();
-    public $Locale = null;
 
     public $Option = array();
     public $Data = array();
@@ -321,7 +317,7 @@ class Tico
         $tpl_render = $this->option('tpl_render');
         if (is_callable($tpl_render))
         {
-            return call_user_func($tpl_render, $tpl, $data, (array)$this->option('views'));
+            return @call_user_func($tpl_render, $tpl, $data, (array)$this->option('views'));
         }
         else
         {
@@ -474,6 +470,7 @@ class Tico
         $params = array_shift($args);
         $subdomain = '';
         $port = '';
+        $locale = '';
         if (is_string($params))
         {
             if (':' === substr($params, 0, 1))
@@ -489,8 +486,9 @@ class Tico
         {
             $subdomain = isset($params['subdomain']) ? (string)$params['subdomain'] : '';
             $port = isset($params['port']) ? (string)$params['port'] : '';
+            $locale = isset($params['locale']) ? (string)$params['locale'] : '';
         }
-        if ('' === $subdomain && '' === $port) return call_user_func_array(array($this, 'uri'), $args);
+        if ('' === $subdomain && '' === $port && '' === $locale) return call_user_func_array(array($this, 'uri'), $args);
         list($scheme, $host, $port0, $path) = $this->parseUrl($this->BaseUrl, '');
         if (strlen($subdomain)) $host = $subdomain . '.' . $host;
         if ('' === $port) $port = $port0;
@@ -514,48 +512,6 @@ class Tico
         {
             return $this->uri($this->router()->make($route, $params, $strict));
         }
-    }
-
-    public function locale($l, $lang)
-    {
-        if (!empty($lang))
-        {
-            $lang = (string)$lang;
-            if (is_callable($l))
-            {
-                $this->LanguagePluralForm[$lang] = $l;
-            }
-            else if (!empty($l))
-            {
-                if (!isset($this->Language[$lang])) $this->Language[$lang] = array();
-                $this->Language[$lang] = array_merge($this->Language[$lang], (array)$l);
-            }
-            $this->Locale = $lang;
-        }
-        return $this;
-    }
-
-    public function l($s, $args = null)
-    {
-        // localisation
-        $locale = $this->Locale;
-        $ls = $locale && isset($this->Language[$locale]) && isset($this->Language[$locale][$s]) ? $this->Language[$locale][$s] : $s;
-        if (!empty($args)) $ls = vsprintf($ls, (array)$args);
-        return $ls;
-    }
-
-    public function pl($n)
-    {
-        // custom plural form per locale
-        $locale = $this->Locale;
-        $isSingular = $locale && isset($this->LanguagePluralForm[$locale]) && is_callable($this->LanguagePluralForm[$locale]) ? (bool)call_user_func($this->LanguagePluralForm[$locale], $n) : (1 == $n);
-        return $isSingular;
-    }
-
-    public function nl($n, $singular, $plural, $args = null)
-    {
-        // singular/plural localisation
-        return $this->l($this->pl($n) ? $singular : $plural, $args);
     }
 
     public function isSsl()
@@ -887,8 +843,8 @@ class Tico
 }
 function tico($baseUrl = '', $basePath = '')
 {
-    static $app = null;
-    if (!$app) $app = $baseUrl instanceof Tico ? $baseUrl : new Tico($baseUrl, $basePath);
-    return $app;
+    static $tico = null;
+    if (!$tico) $tico = $baseUrl instanceof Tico ? $baseUrl : new Tico($baseUrl, $basePath);
+    return $tico;
 }
 }
