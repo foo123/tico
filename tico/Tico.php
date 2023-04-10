@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.13.0
+* @version 1.13.1
 * https://github.com/foo123/tico
 *
 */
@@ -39,7 +39,7 @@ class TicoValue
 
 class Tico
 {
-    const VERSION = '1.13.0';
+    const VERSION = '1.13.1';
 
     public $Loader = null;
     public $Router = null;

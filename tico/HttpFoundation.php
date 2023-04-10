@@ -216,7 +216,8 @@ class ParameterBag implements \IteratorAggregate, \Countable
      *
      * @return \ArrayIterator An \ArrayIterator instance
      */
-    public function getIterator()
+    #[\ReturnTypeWillChange]
+	public function getIterator()
     {
         return new \ArrayIterator($this->parameters);
     }
@@ -226,12 +227,13 @@ class ParameterBag implements \IteratorAggregate, \Countable
      *
      * @return int The number of parameters
      */
-    public function count()
+    #[\ReturnTypeWillChange]
+	public function count()
     {
         return count($this->parameters);
     }
 
-		/**
+        /**
      * Gets the HTTP headers.
      *
      * @return array
@@ -1390,8 +1392,9 @@ class HttpRequest
     public static function createFromGlobals()
     {
         $request = self::createRequestFromFactory($_GET, $_POST, array(), $_COOKIE, $_FILES, $_SERVER);
+		$contentType = $request->headers->get('CONTENT_TYPE');
 
-        if (0 === strpos($request->headers->get('CONTENT_TYPE'), 'application/x-www-form-urlencoded')
+        if (is_string($contentType) && (0 == strpos($contentType, 'application/x-www-form-urlencoded'))
             && in_array(strtoupper($request->server->get('REQUEST_METHOD', 'GET')), array('PUT', 'DELETE', 'PATCH'))
         ) {
             parse_str($request->getContent(), $data);
@@ -2722,7 +2725,7 @@ class HttpRequest
                     }
                 } else {
                     for ($i = 0, $max = count($codes); $i < $max; ++$i) {
-                        if (0 === $i) {
+                        if (0 == $i) {
                             $lang = strtolower($codes[0]);
                         } else {
                             $lang .= '_'.strtoupper($codes[$i]);
@@ -3268,7 +3271,7 @@ class HttpCookie
         } else {
             $str .= $this->isRaw() ? $this->getValue() : rawurlencode($this->getValue());
 
-            if (0 !== $this->getExpiresTime()) {
+            if (0 != $this->getExpiresTime()) {
                 $str .= '; expires='.gmdate('D, d-M-Y H:i:s T', $this->getExpiresTime()).'; max-age='.$this->getMaxAge();
             }
         }
@@ -3343,7 +3346,7 @@ class HttpCookie
      */
     public function getMaxAge()
     {
-        return 0 !== $this->expire ? $this->expire - time() : 0;
+        return 0 != $this->expire ? $this->expire - time() : 0;
     }
 
     /**
@@ -3685,6 +3688,7 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
      *
      * @return \ArrayIterator An \ArrayIterator instance
      */
+	#[\ReturnTypeWillChange]
     public function getIterator()
     {
         return new \ArrayIterator($this->headers);
@@ -3695,7 +3699,8 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
      *
      * @return int The number of headers
      */
-    public function count()
+    #[\ReturnTypeWillChange]
+	public function count()
     {
         return count($this->headers);
     }
@@ -4392,7 +4397,7 @@ class HttpResponse
                     foreach (explode(',', $request->headers->get('X-Accel-Mapping', '')) as $mapping) {
                         $mapping = explode('=', $mapping, 2);
 
-                        if (2 === count($mapping)) {
+                        if (2 == count($mapping)) {
                             $pathPrefix = trim($mapping[0]);
                             $location = trim($mapping[1]);
 
@@ -4566,7 +4571,7 @@ class HttpResponse
                 return $this;
             }
 
-            if (0 === $this->maxlen) {
+            if (0 == $this->maxlen) {
                 return $this;
             }
 
@@ -4702,7 +4707,7 @@ class HttpResponse
         return $this;
     }
 
-		/**
+        /**
      * Sets the Content-Disposition header with the given filename.
      *
      * @param string $disposition      HttpResponseHeaderBag::DISPOSITION_INLINE or HttpResponseHeaderBag::DISPOSITION_ATTACHMENT
@@ -5534,7 +5539,7 @@ class HttpResponse
      */
     public function isOk()/*: bool*/
     {
-        return 200 === $this->statusCode;
+        return 200 == $this->statusCode;
     }
 
     /**
@@ -5544,7 +5549,7 @@ class HttpResponse
      */
     public function isForbidden()/*: bool*/
     {
-        return 403 === $this->statusCode;
+        return 403 == $this->statusCode;
     }
 
     /**
@@ -5554,7 +5559,7 @@ class HttpResponse
      */
     public function isNotFound()/*: bool*/
     {
-        return 404 === $this->statusCode;
+        return 404 == $this->statusCode;
     }
 
     /**
@@ -5608,7 +5613,8 @@ class HttpResponse
      */
     protected function ensureIEOverSSLCompatibility(/*Request*/ $request)
     {
-        if (false !== stripos($this->headers->get('Content-Disposition'), 'attachment') && 1 == preg_match('/MSIE (.*?);/i', $request->server->get('HTTP_USER_AGENT'), $match) && true === $request->isSecure()) {
+        $disposition = $this->headers->get('Content-Disposition');
+		if (is_string($disposition) && false !== stripos($disposition, 'attachment') && 1 == preg_match('/MSIE (.*?);/i', $request->server->get('HTTP_USER_AGENT'), $match) && true === $request->isSecure()) {
             if ((int) preg_replace('/(MSIE )(.*?);/', '$2', $match[0]) < 9) {
                 $this->headers->remove('Cache-Control');
             }
@@ -5884,7 +5890,8 @@ class HttpSession implements SessionHandlerInterface
 
     // SessionHandlerInterface methods here ..
     // ..
-    public function open($savePath, $name)
+    #[\ReturnTypeWillChange]
+	public function open($savePath, $name)
     {
         $this->sessionName = $name;
 
@@ -5898,7 +5905,8 @@ class HttpSession implements SessionHandlerInterface
         return $ret;
     }
 
-    public function close()
+    #[\ReturnTypeWillChange]
+	public function close()
     {
         if ( 'custom' == $this->_storage )
             $ret = (bool)$this->_handler->close();
@@ -5907,7 +5915,8 @@ class HttpSession implements SessionHandlerInterface
         return $ret;
     }
 
-    public function read($id)
+    #[\ReturnTypeWillChange]
+	public function read($id)
     {
         if ( 'custom' == $this->_storage ) {
             $ret = $this->_handler->read($id);
@@ -5920,7 +5929,8 @@ class HttpSession implements SessionHandlerInterface
         return $ret;
     }
 
-    public function write($id, $data)
+    #[\ReturnTypeWillChange]
+	public function write($id, $data)
     {
         if (!$id) {
             return false;
@@ -5933,7 +5943,8 @@ class HttpSession implements SessionHandlerInterface
         return $ret;
     }
 
-    public function destroy($id)
+    #[\ReturnTypeWillChange]
+	public function destroy($id)
     {
         if (!headers_sent() && ini_get('session.use_cookies')) {
             if (!$this->sessionName) {
@@ -5947,10 +5958,10 @@ class HttpSession implements SessionHandlerInterface
                 if (0 !== stripos($h, 'Set-Cookie:')) {
                     continue;
                 }
-                if (11 === strpos($h, $sessionCookie, 11)) {
+                if (11 == strpos($h, $sessionCookie, 11)) {
                     $sessionCookieFound = true;
 
-                    if (11 !== strpos($h, $sessionCookieWithId, 11)) {
+                    if (11 != strpos($h, $sessionCookieWithId, 11)) {
                         $otherCookies[] = $h;
                     }
                 } else {
@@ -5973,7 +5984,8 @@ class HttpSession implements SessionHandlerInterface
         return true;
     }
 
-    public function gc($maxlifetime)
+    #[\ReturnTypeWillChange]
+	public function gc($maxlifetime)
     {
         if ( 'custom' == $this->_storage ) {
             $ret = (bool)$this->_handler->gc($maxlifetime);
