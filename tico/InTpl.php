@@ -2,16 +2,16 @@
 /**
 *
 * InTpl: simple php templates supporting template inheritance
-* @version 1.1.2
+* @version 1.1.3
 * https://github.com/foo123/InTpl
 *
 **/
 
-if ( !class_exists('InTpl', false) )
+if (!class_exists('InTpl', false))
 {
 class InTpl
 {
-    const VERSION = '1.1.2';
+    const VERSION = '1.1.3';
 
     private $_super = null;
     private $_sprout = null;
@@ -92,9 +92,9 @@ class InTpl
         return $this;
     }
 
-    public function block($name, $echo = true)
+    public function block($name, $echo = true, $defaultText = null)
     {
-        $output = isset($this->_blocks[$name]) ? $this->_blocks[$name] : '';
+        $output = isset($this->_blocks[$name]) && strlen($this->_blocks[$name]) ? $this->_blocks[$name] : (is_string($defaultText) ? $defaultText : '');
         if ($echo)
         {
             echo $output;
@@ -108,8 +108,7 @@ class InTpl
 
     public function render($data = array())
     {
-        if (empty($this->tpl))
-            return '';
+        if (empty($this->tpl)) return '';
 
         if (null === $this->found)
         {
@@ -129,8 +128,7 @@ class InTpl
             }
         }
 
-        if (! $this->found)
-            return '';
+        if (!$this->found) return '';
 
         $this->data = (array) $data;
         unset($data);
