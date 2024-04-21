@@ -472,7 +472,7 @@ class Tico
                 header('Content-Type: '.$content['content-type'], false, $content['status']);
                 header('Last-Modified: '.date('D, d M Y H:i:s', $content['time']).' GMT', false, $content['status']);
                 header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
-                echo $content['content'] . "<!-- cached -->";
+                echo $content['content'];
                 return true;
             }
         }
