@@ -39,7 +39,7 @@ tico('http://localhost:8000', ROOT)
         return new MyModel();
     }) // container supports lazy factory-like functions
     ->set('cache', function() {
-        // any custom caching solution can be used, here a simple CacheManager
+        // any custom caching solution can be used that has get/set methods, here a simple CacheManager
         include tico()->path('/cache/CacheManager.php');
         return (new CacheManager())
             ->option('cache_dur_sec', 10 * 60 * 60/*10 minutes*/)

@@ -56,7 +56,7 @@ class Tico
     public $SubdomainsPorts = array();
 
     private $_onSubdomainPort = null;
-    private $_fixed = false;
+    private $_k = null;
 
     public function __construct($baseUrl = '', $basePath = '')
     {
@@ -77,7 +77,7 @@ class Tico
 
     protected function _fixServerVars()
     {
-        if (!$this->_fixed)
+        if (is_null($this->_k))
         {
             $default_server_values = array(
                 'SERVER_SOFTWARE' => '',
@@ -134,7 +134,12 @@ class Tico
             if (empty($_SERVER['PHP_SELF']))
                 $_SERVER['PHP_SELF'] = preg_replace('/(\?.*)?$/', '', $_SERVER["REQUEST_URI"]);
 
-            $this->_fixed = true;
+            $parts = explode('?', $_SERVER['REQUEST_URI']);
+            $uri = '/' . trim($parts[0], '/');
+            $port = isset($_SERVER['SERVER_PORT']) ? (':' . $_SERVER['SERVER_PORT']) : '';
+            $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : '');
+            if (strlen($port) && ($port == substr($host, -strlen($port)))) $port = '';
+            $this->_k = $host . $port . $uri;
         }
     }
 
@@ -449,6 +454,7 @@ class Tico
         $response = $this->response();
         $content = (string)$response->getContent();
         return strlen($content) ? serialize(array(
+            'key' => $this->_k,
             'protocol' => 'HTTP/'.$response->getProtocolVersion(),
             'time' => time(),
             'status' => $response->getStatusCode(),
@@ -458,7 +464,14 @@ class Tico
         )) : null;
     }
 
-    public function _serveCached($cached)
+    private function _mkDateTime($time)
+    {
+        $dt = DateTime::createFromFormat('U', $time);
+        $dt->setTimezone(new DateTimeZone('UTC'));
+        return $dt->format('D, d M Y H:i:s').' GMT';
+    }
+
+    private function _serveCached($cached)
     {
         if (is_string($cached))
         {
@@ -470,7 +483,8 @@ class Tico
             if (!empty($content) && !empty($content['status']) && isset($content['content']))
             {
                 header('Content-Type: '.$content['content-type'], false, $content['status']);
-                header('Last-Modified: '.date('D, d M Y H:i:s', $content['time']).' GMT', false, $content['status']);
+                header('Last-Modified: '.$this->_mkDateTime($content['time']), false, $content['status']);
+                header('Date: '.$this->_mkDateTime(time()), false, $content['status']);
                 header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
                 echo $content['content'];
                 return true;
@@ -840,7 +854,7 @@ class Tico
 
         // if cache enabled serve fast and early
         $cache = $this->get('cache');
-        $cached = $cache && method_exists($cache, 'get') ? $cache->get($_SERVER['REQUEST_URI']) : null;
+        $cached = is_object($cache) && method_exists($cache, 'get') ? $cache->get($this->_k) : null;
         if ($cached && $this->_serveCached($cached)) return true;
         return false;
     }
@@ -911,8 +925,10 @@ class Tico
         }
 
         $this->response()->prepare($this->request());
+
         // if cache enabled for this page, cache it
-        if ($this->variable('cache') && (($cache = $this->get('cache')) && method_exists($cache, 'set') ) && ($cached = $this->cached())) $cache->set($_SERVER['REQUEST_URI'], $cached);
+        if ($this->variable('cache') && (is_object($cache = $this->get('cache')) && method_exists($cache, 'set') ) && ($cached = $this->cached())) $cache->set($this->_k, $cached);
+
         $this->response()->send();
     }
 }
