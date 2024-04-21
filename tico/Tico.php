@@ -134,8 +134,8 @@ class Tico
             if (empty($_SERVER['PHP_SELF']))
                 $_SERVER['PHP_SELF'] = preg_replace('/(\?.*)?$/', '', $_SERVER["REQUEST_URI"]);
 
-            $parts = explode('?', $_SERVER['REQUEST_URI']);
-            $uri = '/' . trim($parts[0], '/');
+            //$parts = explode('?', $_SERVER['REQUEST_URI']);
+            $uri = '/' . trim(/*$parts[0]*/$_SERVER['REQUEST_URI'], '/');
             $port = isset($_SERVER['SERVER_PORT']) ? (':' . $_SERVER['SERVER_PORT']) : '';
             $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : '');
             if (strlen($port) && ($port == substr($host, -strlen($port)))) $port = '';
