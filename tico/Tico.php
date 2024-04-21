@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.13.2
+* @version 1.15.0
 * https://github.com/foo123/tico
 *
 */
@@ -39,7 +39,7 @@ class TicoValue
 
 class Tico
 {
-    const VERSION = '1.13.2';
+    const VERSION = '1.15.0';
 
     public $Loader = null;
     public $Router = null;
@@ -51,6 +51,7 @@ class Tico
 
     public $Option = array();
     public $Data = array();
+    public $Variable = array();
     public $Middleware = null;
     public $SubdomainsPorts = array();
 
@@ -217,6 +218,17 @@ class Tico
         }
 
         return $val;
+    }
+
+    public function variable($key)
+    {
+        $args = func_get_args();
+        if (1 < count($args))
+        {
+            $this->Variable[$key] = $args[1];
+            return $this;
+        }
+        return isset($this->Variable[$key]) ? $this->Variable[$key] : null;
     }
 
     public function option($key)
@@ -421,6 +433,36 @@ class Tico
             }
         }
         return $this;
+    }
+
+    public function cached()
+    {
+        $response = $this->response();
+        return serialize(array(
+            'protocol' => 'HTTP/'.$response->getProtocolVersion(),
+            'time' => time(),
+            'status' => $response->getStatusCode(),
+            'status-text' => HttpResponse::$statusTexts[$response->getStatusCode()],
+            'content-type' => $response->headers->get('Content-Type'),
+            'content' => $response->getContent(),
+        ));
+    }
+
+    public function serve_cached($cached)
+    {
+        if (is_string($cached))
+        {
+            $content = unserialize($cached);
+            if (!empty($content) && !empty($content['status']) && isset($content['content']))
+            {
+                header('Content-Type: '.$content['content-type'], false, $content['status']);
+                header('Last-Modified: '.date('D, d M Y H:i:s', $content['time']).' GMT', false, $content['status']);
+                header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
+                echo $content['content'];
+                return true;
+            }
+        }
+        return false;
     }
 
     public function redirect($uri, $code = 302)
@@ -779,6 +821,16 @@ class Tico
 
         $this->_fixServerVars();
 
+        $cache = $this->get('cache');
+
+        // if cache enabled serve fast and exit early
+        if ($cache)
+        {
+            $cached = $cache->get($_SERVER['REQUEST_URI']);
+            if ($cached && $this->serve_cached($cached)) return;
+        }
+
+        // full framework
         $this->request();
 
         $passed = true;
@@ -838,7 +890,10 @@ class Tico
             call_user_func($next2);
         }
 
-        $this->response()->prepare($this->request())->send();
+        $this->response()->prepare($this->request());
+        // if cache enabled for this page, cache it
+        if ($cache && $this->variable('cache')) $cache->set($_SERVER['REQUEST_URI'], $this->cached());
+        $this->response()->send();
     }
 }
 function tico($baseUrl = '', $basePath = '')
