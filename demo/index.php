@@ -20,6 +20,25 @@ tico('http://localhost:8000', ROOT)
     ->set('model', function() {
         return new MyModel();
     }) // container supports lazy factory-like functions
+    ->set('cache', function() {
+        include tico()->path('/cache/CacheManager.php');
+        return (new CacheManager())
+            ->option('cache_dur_sec', 10 * 60 * 60/*10 minutes*/)
+            ->option('cache_dir', tico()->path('/cache/data'))
+        ;
+    }) // container supports lazy factory-like functions
+;
+
+
+// if cache served, exit fast and early
+if (tico()->serveCache())
+{
+    // done
+}
+else
+{
+// full framework
+tico()
     ->middleware(function($next) {
 
         // eg check if user is authenticated,
@@ -39,7 +58,7 @@ tico('http://localhost:8000', ROOT)
         if (('guest' == tico()->get('user')) && ('/hello/foo' == tico()->requestPath()))
             //tico()->redirect(tico()->uri('/hello/bar'), 302);
             tico()->output(
-                array('title' => 'Hello!', 'msg' => 'guest'),
+                array('title' => 'Hello!', 'msg' => 'guest', 'count'=> 0),
                 'hello.tpl.php'
             );
         // else pass along
@@ -159,5 +178,5 @@ tico('http://localhost:8000', ROOT)
     }, 'after')
     ->serve()
 ;
-
+}
 exit;

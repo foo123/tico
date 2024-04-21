@@ -56,6 +56,7 @@ class Tico
     public $SubdomainsPorts = array();
 
     private $_onSubdomainPort = null;
+    private $_fixed = false;
 
     public function __construct($baseUrl = '', $basePath = '')
     {
@@ -70,64 +71,71 @@ class Tico
         $this->option('webroot', $this->BasePath);
         $this->option('case_insensitive_uris', true);
         $this->option('views', array(''));
+
+        $this->variable('cache', empty($_GET) && empty($_POST)); // page w/ request params not cached
     }
 
     protected function _fixServerVars()
     {
-        $default_server_values = array(
-            'SERVER_SOFTWARE' => '',
-            'REQUEST_URI' => '',
-        );
-
-        $_SERVER = array_merge($default_server_values, $_SERVER);
-
-        // Fix for IIS when running with PHP ISAPI
-        if (empty($_SERVER['REQUEST_URI']) || (PHP_SAPI != 'cgi-fcgi' && preg_match('/^Microsoft-IIS\//', $_SERVER['SERVER_SOFTWARE'])))
+        if (!$this->_fixed)
         {
-            // IIS Mod-Rewrite
-            if (isset($_SERVER['HTTP_X_ORIGINAL_URL']))
-            {
-                $_SERVER['REQUEST_URI'] = $_SERVER['HTTP_X_ORIGINAL_URL'];
-            }
-            // IIS Isapi_Rewrite
-            elseif (isset($_SERVER['HTTP_X_REWRITE_URL']))
-            {
-                $_SERVER['REQUEST_URI'] = $_SERVER['HTTP_X_REWRITE_URL'];
-            }
-            else
-            {
-                // Use ORIG_PATH_INFO if there is no PATH_INFO
-                if (!isset($_SERVER['PATH_INFO']) && isset($_SERVER['ORIG_PATH_INFO']))
-                    $_SERVER['PATH_INFO'] = $_SERVER['ORIG_PATH_INFO'];
+            $default_server_values = array(
+                'SERVER_SOFTWARE' => '',
+                'REQUEST_URI' => '',
+            );
 
-                // Some IIS + PHP configurations puts the script-name in the path-info (No need to append it twice)
-                if (isset($_SERVER['PATH_INFO']))
-                {
-                    if ($_SERVER['PATH_INFO'] == $_SERVER['SCRIPT_NAME'])
-                        $_SERVER['REQUEST_URI'] = $_SERVER['PATH_INFO'];
-                    else
-                        $_SERVER['REQUEST_URI'] = $_SERVER['SCRIPT_NAME'] . $_SERVER['PATH_INFO'];
-                }
+            $_SERVER = array_merge($default_server_values, $_SERVER);
 
-                // Append the query string if it exists and isn't null
-                if (!empty($_SERVER['QUERY_STRING']))
+            // Fix for IIS when running with PHP ISAPI
+            if (empty($_SERVER['REQUEST_URI']) || (PHP_SAPI != 'cgi-fcgi' && preg_match('/^Microsoft-IIS\//', $_SERVER['SERVER_SOFTWARE'])))
+            {
+                // IIS Mod-Rewrite
+                if (isset($_SERVER['HTTP_X_ORIGINAL_URL']))
                 {
-                    $_SERVER['REQUEST_URI'] .= '?' . $_SERVER['QUERY_STRING'];
+                    $_SERVER['REQUEST_URI'] = $_SERVER['HTTP_X_ORIGINAL_URL'];
+                }
+                // IIS Isapi_Rewrite
+                elseif (isset($_SERVER['HTTP_X_REWRITE_URL']))
+                {
+                    $_SERVER['REQUEST_URI'] = $_SERVER['HTTP_X_REWRITE_URL'];
+                }
+                else
+                {
+                    // Use ORIG_PATH_INFO if there is no PATH_INFO
+                    if (!isset($_SERVER['PATH_INFO']) && isset($_SERVER['ORIG_PATH_INFO']))
+                        $_SERVER['PATH_INFO'] = $_SERVER['ORIG_PATH_INFO'];
+
+                    // Some IIS + PHP configurations puts the script-name in the path-info (No need to append it twice)
+                    if (isset($_SERVER['PATH_INFO']))
+                    {
+                        if ($_SERVER['PATH_INFO'] == $_SERVER['SCRIPT_NAME'])
+                            $_SERVER['REQUEST_URI'] = $_SERVER['PATH_INFO'];
+                        else
+                            $_SERVER['REQUEST_URI'] = $_SERVER['SCRIPT_NAME'] . $_SERVER['PATH_INFO'];
+                    }
+
+                    // Append the query string if it exists and isn't null
+                    if (!empty($_SERVER['QUERY_STRING']))
+                    {
+                        $_SERVER['REQUEST_URI'] .= '?' . $_SERVER['QUERY_STRING'];
+                    }
                 }
             }
+
+            // Fix for PHP as CGI hosts that set SCRIPT_FILENAME to something ending in php.cgi for all requests
+            if (isset($_SERVER['SCRIPT_FILENAME']) && (strpos($_SERVER['SCRIPT_FILENAME'], 'php.cgi') == strlen($_SERVER['SCRIPT_FILENAME']) - 7))
+                $_SERVER['SCRIPT_FILENAME'] = $_SERVER['PATH_TRANSLATED'];
+
+            // Fix for Dreamhost and other PHP as CGI hosts
+            if (strpos($_SERVER['SCRIPT_NAME'], 'php.cgi') !== false)
+                unset($_SERVER['PATH_INFO']);
+
+            // Fix empty PHP_SELF
+            if (empty($_SERVER['PHP_SELF']))
+                $_SERVER['PHP_SELF'] = preg_replace('/(\?.*)?$/', '', $_SERVER["REQUEST_URI"]);
+
+            $this->_fixed = true;
         }
-
-        // Fix for PHP as CGI hosts that set SCRIPT_FILENAME to something ending in php.cgi for all requests
-        if (isset($_SERVER['SCRIPT_FILENAME']) && (strpos($_SERVER['SCRIPT_FILENAME'], 'php.cgi') == strlen($_SERVER['SCRIPT_FILENAME']) - 7))
-            $_SERVER['SCRIPT_FILENAME'] = $_SERVER['PATH_TRANSLATED'];
-
-        // Fix for Dreamhost and other PHP as CGI hosts
-        if (strpos($_SERVER['SCRIPT_NAME'], 'php.cgi') !== false)
-            unset($_SERVER['PATH_INFO']);
-
-        // Fix empty PHP_SELF
-        if (empty($_SERVER['PHP_SELF']))
-            $_SERVER['PHP_SELF'] = preg_replace('/(\?.*)?$/', '', $_SERVER["REQUEST_URI"]);
     }
 
     public function args($argv = null)
@@ -387,6 +395,7 @@ class Tico
                     $this->response()->deleteFileAfterSend($headers['deleteFileAfterSend']);
                     unset($headers['deleteFileAfterSend']);
                 }
+                $this->variable('cache', false); // files not cached
                 break;
 
             default:
@@ -438,27 +447,32 @@ class Tico
     public function cached()
     {
         $response = $this->response();
-        return serialize(array(
+        $content = (string)$response->getContent();
+        return strlen($content) ? serialize(array(
             'protocol' => 'HTTP/'.$response->getProtocolVersion(),
             'time' => time(),
             'status' => $response->getStatusCode(),
             'status-text' => HttpResponse::$statusTexts[$response->getStatusCode()],
             'content-type' => $response->headers->get('Content-Type'),
-            'content' => $response->getContent(),
-        ));
+            'content' => $content,
+        )) : null;
     }
 
-    public function serve_cached($cached)
+    public function _serveCached($cached)
     {
         if (is_string($cached))
         {
-            $content = unserialize($cached);
+            try {
+                $content = @unserialize($cached, array('allowed_classes'=>false));
+            } catch(Exception $e) {
+                $content = null;
+            }
             if (!empty($content) && !empty($content['status']) && isset($content['content']))
             {
                 header('Content-Type: '.$content['content-type'], false, $content['status']);
                 header('Last-Modified: '.date('D, d M Y H:i:s', $content['time']).' GMT', false, $content['status']);
                 header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
-                echo $content['content'];
+                echo $content['content'] . "<!-- cached -->";
                 return true;
             }
         }
@@ -468,6 +482,7 @@ class Tico
     public function redirect($uri, $code = 302)
     {
         $this->response()->setTargetUrl($uri, $code);
+        $this->variable('cache', false); // redirects not cached
         return $this;
     }
 
@@ -661,7 +676,9 @@ class Tico
             $handler = $route;
             if (is_callable($handler) && $router->isTop())
             {
-                $router->fallback(function($route) use ($handler) {
+                $tico = $this;
+                $router->fallback(function($route) use ($handler,$tico) {
+                    $tico->variable('cache', false); // 404 not cached
                     return call_user_func($handler, false);
                 });
             }
@@ -815,22 +832,25 @@ class Tico
         return $this;
     }
 
+    public function serveCache()
+    {
+        if ($this->isCli()) return false;
+
+        $this->_fixServerVars();
+
+        // if cache enabled serve fast and early
+        $cache = $this->get('cache');
+        $cached = $cache && method_exists($cache, 'get') ? $cache->get($_SERVER['REQUEST_URI']) : null;
+        if ($cached && $this->_serveCached($cached)) return true;
+        return false;
+    }
+
     public function serve()
     {
         if ($this->isCli()) return;
 
         $this->_fixServerVars();
 
-        $cache = $this->get('cache');
-
-        // if cache enabled serve fast and exit early
-        if ($cache)
-        {
-            $cached = $cache->get($_SERVER['REQUEST_URI']);
-            if ($cached && $this->serve_cached($cached)) return;
-        }
-
-        // full framework
         $this->request();
 
         $passed = true;
@@ -892,7 +912,7 @@ class Tico
 
         $this->response()->prepare($this->request());
         // if cache enabled for this page, cache it
-        if ($cache && $this->variable('cache')) $cache->set($_SERVER['REQUEST_URI'], $this->cached());
+        if ($this->variable('cache') && (($cache = $this->get('cache')) && method_exists($cache, 'set') ) && ($cached = $this->cached())) $cache->set($_SERVER['REQUEST_URI'], $cached);
         $this->response()->send();
     }
 }

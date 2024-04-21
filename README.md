@@ -34,12 +34,30 @@ tico('http://localhost:8000', ROOT)
         // custom template renderer
         return MyFancyTpl::render($tpl, $data);
     })*/
-
     //->set('model', new MyModel()) // simple dependency injection container
     ->set('model', function() {
         return new MyModel();
     }) // container supports lazy factory-like functions
+    ->set('cache', function() {
+        // any custom caching solution can be used, here a simple CacheManager
+        include tico()->path('/cache/CacheManager.php');
+        return (new CacheManager())
+            ->option('cache_dur_sec', 10 * 60 * 60/*10 minutes*/)
+            ->option('cache_dir', tico()->path('/cache/data'))
+        ;
+    }) // container supports lazy factory-like functions
+;
 
+
+// if cache served, exit fast and early
+if (tico()->serveCache())
+{
+    // done
+}
+else
+{
+// full framework
+tico()
     // middleware functionality
     ->middleware(function($next) {
 
@@ -235,6 +253,7 @@ tico('http://localhost:8000', ROOT)
 
     ->serve()
 ;
+}
 ```
 
 **see also:**
