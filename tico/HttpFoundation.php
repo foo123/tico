@@ -1,199 +1,85 @@
 <?php
 /*
- * This file is part of the Symfony package.
- *
+ * HttpFoundation adapted in a single file for PHP5+
+ * from Symfony (https://github.com/symfony/http-foundation)
  * (c) Fabien Potencier <fabien@symfony.com>
  *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
  */
 
-//namespace Symfony\Component\HttpFoundation;
-
-/**
- * ParameterBag is a container for key/value pairs.
- *
- * @author Fabien Potencier <fabien@symfony.com>
- */
 class ParameterBag implements \IteratorAggregate, \Countable
 {
-    /**
-     * Parameter storage.
-     */
     protected $parameters;
-
-    /**
-     * @param array $parameters An array of parameters
-     */
     public function __construct(/*array*/ $parameters = array())
     {
         $this->parameters = $parameters;
     }
 
-    /**
-     * Returns the parameters.
-     *
-     * @return array An array of parameters
-     */
     public function all()
     {
         return $this->parameters;
     }
 
-    /**
-     * Returns the parameter keys.
-     *
-     * @return array An array of parameter keys
-     */
     public function keys()
     {
         return array_keys($this->parameters);
     }
 
-    /**
-     * Replaces the current parameters by a new set.
-     *
-     * @param array $parameters An array of parameters
-     */
     public function replace(/*array*/ $parameters = array())
     {
         $this->parameters = $parameters;
     }
 
-    /**
-     * Adds parameters.
-     *
-     * @param array $parameters An array of parameters
-     */
     public function add(/*array*/ $parameters = array())
     {
         $this->parameters = array_replace($this->parameters, $parameters);
     }
 
-    /**
-     * Returns a parameter by name.
-     *
-     * @param string $key     The key
-     * @param mixed  $default The default value if the parameter key does not exist
-     *
-     * @return mixed
-     */
     public function get($key, $default = null)
     {
         return array_key_exists($key, $this->parameters) ? $this->parameters[$key] : $default;
     }
 
-    /**
-     * Sets a parameter by name.
-     *
-     * @param string $key   The key
-     * @param mixed  $value The value
-     */
     public function set($key, $value)
     {
         $this->parameters[$key] = $value;
     }
 
-    /**
-     * Returns true if the parameter is defined.
-     *
-     * @param string $key The key
-     *
-     * @return bool true if the parameter exists, false otherwise
-     */
     public function has($key)
     {
         return array_key_exists($key, $this->parameters);
     }
 
-    /**
-     * Removes a parameter.
-     *
-     * @param string $key The key
-     */
     public function remove($key)
     {
         unset($this->parameters[$key]);
     }
 
-    /**
-     * Returns the alphabetic characters of the parameter value.
-     *
-     * @param string $key     The parameter key
-     * @param string $default The default value if the parameter key does not exist
-     *
-     * @return string The filtered value
-     */
     public function getAlpha($key, $default = '')
     {
         return preg_replace('/[^[:alpha:]]/', '', $this->get($key, $default));
     }
 
-    /**
-     * Returns the alphabetic characters and digits of the parameter value.
-     *
-     * @param string $key     The parameter key
-     * @param string $default The default value if the parameter key does not exist
-     *
-     * @return string The filtered value
-     */
     public function getAlnum($key, $default = '')
     {
         return preg_replace('/[^[:alnum:]]/', '', $this->get($key, $default));
     }
 
-    /**
-     * Returns the digits of the parameter value.
-     *
-     * @param string $key     The parameter key
-     * @param string $default The default value if the parameter key does not exist
-     *
-     * @return string The filtered value
-     */
     public function getDigits($key, $default = '')
     {
         // we need to remove - and + because they're allowed in the filter
         return str_replace(array('-', '+'), '', $this->filter($key, $default, FILTER_SANITIZE_NUMBER_INT));
     }
 
-    /**
-     * Returns the parameter value converted to integer.
-     *
-     * @param string $key     The parameter key
-     * @param int    $default The default value if the parameter key does not exist
-     *
-     * @return int The filtered value
-     */
     public function getInt($key, $default = 0)
     {
         return (int) $this->get($key, $default);
     }
 
-    /**
-     * Returns the parameter value converted to boolean.
-     *
-     * @param string $key     The parameter key
-     * @param mixed  $default The default value if the parameter key does not exist
-     *
-     * @return bool The filtered value
-     */
     public function getBoolean($key, $default = false)
     {
         return $this->filter($key, $default, FILTER_VALIDATE_BOOLEAN);
     }
 
-    /**
-     * Filter key.
-     *
-     * @param string $key     Key
-     * @param mixed  $default Default = null
-     * @param int    $filter  FILTER_* constant
-     * @param mixed  $options Filter options
-     *
-     * @see http://php.net/manual/en/function.filter-var.php
-     *
-     * @return mixed
-     */
     public function filter($key, $default = null, $filter = FILTER_DEFAULT, $options = array())
     {
         $value = $this->get($key, $default);
@@ -211,33 +97,18 @@ class ParameterBag implements \IteratorAggregate, \Countable
         return filter_var($value, $filter, $options);
     }
 
-    /**
-     * Returns an iterator for parameters.
-     *
-     * @return \ArrayIterator An \ArrayIterator instance
-     */
     #[\ReturnTypeWillChange]
-	public function getIterator()
+    public function getIterator()
     {
         return new \ArrayIterator($this->parameters);
     }
 
-    /**
-     * Returns the number of parameters.
-     *
-     * @return int The number of parameters
-     */
     #[\ReturnTypeWillChange]
-	public function count()
+    public function count()
     {
         return count($this->parameters);
     }
 
-        /**
-     * Gets the HTTP headers.
-     *
-     * @return array
-     */
     public function getHeaders()
     {
         $headers = array();
@@ -314,40 +185,21 @@ class ParameterBag implements \IteratorAggregate, \Countable
     }
 }
 
-//namespace Symfony\Component\HttpFoundation;
-
-//use Symfony\Component\HttpFoundation\File\UploadedFile;
-
-/**
- * FileBag is a container for uploaded files.
- *
- * @author Fabien Potencier <fabien@symfony.com>
- * @author Bulat Shakirzyanov <mallluhuct@gmail.com>
- */
 class HttpFileBag extends ParameterBag
 {
     private static $fileKeys = array('error', 'name', 'size', 'tmp_name', 'type');
 
-    /**
-     * @param array $parameters An array of HTTP files
-     */
     public function __construct(/*array*/ $parameters = array())
     {
         $this->replace($parameters);
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function replace(/*array*/ $files = array())
     {
         $this->parameters = array();
         $this->add($files);
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function set($key, $value)
     {
         if (!is_array($value) /*&& !$value instanceof UploadedFile*/) {
@@ -357,9 +209,6 @@ class HttpFileBag extends ParameterBag
         parent::set($key, $this->convertFileInformation($value));
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function add(/*array*/ $files = array())
     {
         foreach ($files as $key => $file) {
@@ -367,13 +216,6 @@ class HttpFileBag extends ParameterBag
         }
     }
 
-    /**
-     * Converts uploaded files to UploadedFile instances.
-     *
-     * @param array|UploadedFile $file A (multi-dimensional) array of uploaded file information
-     *
-     * @return UploadedFile[]|UploadedFile|null A (multi-dimensional) array of UploadedFile instances
-     */
     protected function convertFileInformation($file)
     {
         /*if ($file instanceof UploadedFile) {
@@ -402,20 +244,6 @@ class HttpFileBag extends ParameterBag
         return $file;
     }
 
-    /**
-     * Fixes a malformed PHP $_FILES array.
-     *
-     * PHP has a bug that the format of the $_FILES array differs, depending on
-     * whether the uploaded file fields had normal field names or array-like
-     * field names ("normal" vs. "parent[child]").
-     *
-     * This method fixes the array to look like the "normal" $_FILES array.
-     *
-     * It's safe to pass an already converted array, in which case this method
-     * just returns the original array unmodified.
-     *
-     * @return array
-     */
     protected function fixPhpFilesArray($data)
     {
         if (!is_array($data)) {
@@ -448,33 +276,14 @@ class HttpFileBag extends ParameterBag
     }
 }
 
-
-//namespace Symfony\Component\HttpFoundation;
-
-/**
- * Http utility functions.
- *
- * @author Fabien Potencier <fabien@symfony.com>
- */
 class HttpIpUtils
 {
     private static $checkedIps = array();
 
-    /**
-     * This class should not be instantiated.
-     */
     private function __construct()
     {
     }
 
-    /**
-     * Checks if an IPv4 or IPv6 address is contained in the list of given IPs or subnets.
-     *
-     * @param string       $requestIp IP to check
-     * @param string|array $ips       List of IPs or subnets (can be a string if only a single one)
-     *
-     * @return bool Whether the IP is valid
-     */
     public static function checkIp($requestIp, $ips)
     {
         if (!is_array($ips)) {
@@ -500,15 +309,6 @@ class HttpIpUtils
         return false;
     }
 
-    /**
-     * Compares two IPv4 addresses.
-     * In case a subnet is given, it checks if it contains the request IP.
-     *
-     * @param string $requestIp IPv4 address to check
-     * @param string $ip        IPv4 address or subnet in CIDR notation
-     *
-     * @return bool Whether the request IP matches the IP, or whether the request IP is within the CIDR subnet
-     */
     public static function checkIp4($requestIp, $ip)
     {
         $cacheKey = $requestIp.'-'.$ip;
@@ -542,21 +342,6 @@ class HttpIpUtils
         return self::$checkedIps[$cacheKey] = 0 === substr_compare(sprintf('%032b', ip2long($requestIp)), sprintf('%032b', ip2long($address)), 0, $netmask);
     }
 
-    /**
-     * Compares two IPv6 addresses.
-     * In case a subnet is given, it checks if it contains the request IP.
-     *
-     * @author David Soria Parra <dsp at php dot net>
-     *
-     * @see https://github.com/dsp/v6tools
-     *
-     * @param string $requestIp IPv6 address to check
-     * @param string $ip        IPv6 address or subnet in CIDR notation
-     *
-     * @return bool Whether the IP is valid
-     *
-     * @throws \RuntimeException When IPV6 support is not enabled
-     */
     public static function checkIp6($requestIp, $ip)
     {
         $cacheKey = $requestIp.'-'.$ip;
@@ -603,38 +388,12 @@ class HttpIpUtils
     }
 }
 
-
-//namespace Symfony\Component\HttpFoundation;
-
-/**
- * HTTP header utility functions.
- *
- * @author Christian Schmidt <github@chsc.dk>
- */
 class HttpHeaderUtils
 {
-    /**
-     * This class should not be instantiated.
-     */
     private function __construct()
     {
     }
 
-    /**
-     * Splits an HTTP header by one or more separators.
-     *
-     * Example:
-     *
-     *     HttpHeaderUtils::split("da, en-gb;q=0.8", ",;")
-     *     // => array(array('da'), array('en-gb', 'q=0.8'))
-     *
-     * @param string $header     HTTP header value
-     * @param string $separators List of characters to split on, ordered by
-     *                           precedence, e.g. ",", ";=", or ",;="
-     *
-     * @return array Nested array with as many levels as there are characters in
-     *               $separators
-     */
     public static function split(/*string*/ $header, /*string*/ $separators)/*: array*/
     {
         $quotedSeparators = preg_quote($separators, '/');
@@ -660,19 +419,6 @@ class HttpHeaderUtils
         return self::groupParts($matches, $separators);
     }
 
-    /**
-     * Combines an array of arrays into one associative array.
-     *
-     * Each of the nested arrays should have one or two elements. The first
-     * value will be used as the keys in the associative array, and the second
-     * will be used as the values, or true if the nested array only contains one
-     * element. Array keys are lowercased.
-     *
-     * Example:
-     *
-     *     HttpHeaderUtils::combine(array(array("foo", "abc"), array("bar")))
-     *     // => array("foo" => "abc", "bar" => true)
-     */
     public static function combine(/*array*/ $parts)/*: array*/
     {
         $assoc = array();
@@ -685,18 +431,6 @@ class HttpHeaderUtils
         return $assoc;
     }
 
-    /**
-     * Joins an associative array into a string for use in an HTTP header.
-     *
-     * The key and value of each entry are joined with "=", and all entries
-     * are joined with the specified separator and an additional space (for
-     * readability). Values are quoted if necessary.
-     *
-     * Example:
-     *
-     *     HttpHeaderUtils::toString(array("foo" => "abc", "bar" => true, "baz" => "a b c"), ",")
-     *     // => 'foo=abc, bar, baz="a b c"'
-     */
     public static function toString(/*array*/ $assoc, /*string*/ $separator)/*: string*/
     {
         $parts = array();
@@ -711,13 +445,6 @@ class HttpHeaderUtils
         return implode($separator.' ', $parts);
     }
 
-    /**
-     * Encodes a string as a quoted string, if necessary.
-     *
-     * If a string contains characters not allowed by the "token" construct in
-     * the HTTP specification, it is backslash-escaped and enclosed in quotes
-     * to match the "quoted-string" construct.
-     */
     public static function quote(/*string*/ $s)/*: string*/
     {
         if (preg_match('/^[a-z0-9!#$%&\'*.^_`|~-]+$/i', $s)) {
@@ -727,12 +454,6 @@ class HttpHeaderUtils
         return '"'.addcslashes($s, '"\\"').'"';
     }
 
-    /**
-     * Decodes a quoted string.
-     *
-     * If passed an unquoted string that matches the "token" construct (as
-     * defined in the HTTP specification), it is passed through verbatimly.
-     */
     public static function unquote(/*string*/ $s)/*: string*/
     {
         return preg_replace('/\\\\(.)|"/', '$1', $s);
@@ -768,31 +489,12 @@ class HttpHeaderUtils
     }
 }
 
-//namespace Symfony\Component\HttpFoundation;
-
-/**
- * Represents an Accept-* header.
- *
- * An accept header is compound with a list of items,
- * sorted by descending quality.
- *
- * @author Jean-François Simon <contact@jfsimon.fr>
- */
 class HttpAcceptHeader
 {
-    /**
-     * @var AcceptHeaderItem[]
-     */
     private $items = array();
 
-    /**
-     * @var bool
-     */
     private $sorted = true;
 
-    /**
-     * @param AcceptHeaderItem[] $items
-     */
     public function __construct(/*array*/ $items)
     {
         foreach ($items as $item) {
@@ -800,13 +502,6 @@ class HttpAcceptHeader
         }
     }
 
-    /**
-     * Builds an HttpAcceptHeader instance from a string.
-     *
-     * @param string $headerValue
-     *
-     * @return self
-     */
     public static function fromString($headerValue)
     {
         $index = 0;
@@ -819,45 +514,21 @@ class HttpAcceptHeader
         }, preg_split('/\s*(?:,*("[^"]+"),*|,*(\'[^\']+\'),*|,+)\s*/', $headerValue, 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE)));
     }
 
-    /**
-     * Returns header value's string representation.
-     *
-     * @return string
-     */
     public function __toString()
     {
         return implode(',', $this->items);
     }
 
-    /**
-     * Tests if header has given value.
-     *
-     * @param string $value
-     *
-     * @return bool
-     */
     public function has($value)
     {
         return isset($this->items[$value]);
     }
 
-    /**
-     * Returns given value's item, if exists.
-     *
-     * @param string $value
-     *
-     * @return HttpAcceptHeaderItem|null
-     */
     public function get($value)
     {
         return isset($this->items[$value]) ? $this->items[$value] : null;
     }
 
-    /**
-     * Adds an item.
-     *
-     * @return $this
-     */
     public function add(/*HttpAcceptHeaderItem*/ $item)
     {
         $this->items[$item->getValue()] = $item;
@@ -866,11 +537,6 @@ class HttpAcceptHeader
         return $this;
     }
 
-    /**
-     * Returns all items.
-     *
-     * @return HttpAcceptHeaderItem[]
-     */
     public function all()
     {
         $this->sort();
@@ -878,13 +544,6 @@ class HttpAcceptHeader
         return $this->items;
     }
 
-    /**
-     * Filters items on their value using given regex.
-     *
-     * @param string $pattern
-     *
-     * @return self
-     */
     public function filter($pattern)
     {
         return new self(array_filter($this->items, function (/*HttpAcceptHeaderItem*/ $item) use ($pattern) {
@@ -892,11 +551,6 @@ class HttpAcceptHeader
         }));
     }
 
-    /**
-     * Returns first item.
-     *
-     * @return HttpAcceptHeaderItem|null
-     */
     public function first()
     {
         $this->sort();
@@ -904,9 +558,6 @@ class HttpAcceptHeader
         return !empty($this->items) ? reset($this->items) : null;
     }
 
-    /**
-     * Sorts items by descending quality.
-     */
     private function sort()
     {
         if (!$this->sorted) {
@@ -926,13 +577,6 @@ class HttpAcceptHeader
     }
 }
 
-//namespace Symfony\Component\HttpFoundation;
-
-/**
- * Represents an Accept-* header item.
- *
- * @author Jean-François Simon <contact@jfsimon.fr>
- */
 class HttpAcceptHeaderItem
 {
     private $value;
@@ -948,13 +592,6 @@ class HttpAcceptHeaderItem
         }
     }
 
-    /**
-     * Builds an AcceptHeaderInstance instance from a string.
-     *
-     * @param string $itemValue
-     *
-     * @return self
-     */
     public static function fromString($itemValue)
     {
         $bits = preg_split('/\s*(?:;*("[^"]+");*|;*(\'[^\']+\');*|;+)\s*/', $itemValue, 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
@@ -977,11 +614,6 @@ class HttpAcceptHeaderItem
         return new self(($start = substr($value, 0, 1)) === ($end = substr($value, -1)) && ('"' === $start || '\'' === $start) ? substr($value, 1, -1) : $value, $attributes);
     }
 
-    /**
-     * Returns header  value's string representation.
-     *
-     * @return string
-     */
     public function __toString()
     {
         $string = $this->value.($this->quality < 1 ? ';q='.$this->quality : '');
@@ -994,13 +626,6 @@ class HttpAcceptHeaderItem
         return $string;
     }
 
-    /**
-     * Set the item value.
-     *
-     * @param string $value
-     *
-     * @return $this
-     */
     public function setValue($value)
     {
         $this->value = $value;
@@ -1008,23 +633,11 @@ class HttpAcceptHeaderItem
         return $this;
     }
 
-    /**
-     * Returns the item value.
-     *
-     * @return string
-     */
     public function getValue()
     {
         return $this->value;
     }
 
-    /**
-     * Set the item quality.
-     *
-     * @param float $quality
-     *
-     * @return $this
-     */
     public function setQuality($quality)
     {
         $this->quality = $quality;
@@ -1032,23 +645,11 @@ class HttpAcceptHeaderItem
         return $this;
     }
 
-    /**
-     * Returns the item quality.
-     *
-     * @return float
-     */
     public function getQuality()
     {
         return $this->quality;
     }
 
-    /**
-     * Set the item index.
-     *
-     * @param int $index
-     *
-     * @return $this
-     */
     public function setIndex($index)
     {
         $this->index = $index;
@@ -1056,59 +657,26 @@ class HttpAcceptHeaderItem
         return $this;
     }
 
-    /**
-     * Returns the item index.
-     *
-     * @return int
-     */
     public function getIndex()
     {
         return $this->index;
     }
 
-    /**
-     * Tests if an attribute exists.
-     *
-     * @param string $name
-     *
-     * @return bool
-     */
     public function hasAttribute($name)
     {
         return isset($this->attributes[$name]);
     }
 
-    /**
-     * Returns an attribute by its name.
-     *
-     * @param string $name
-     * @param mixed  $default
-     *
-     * @return mixed
-     */
     public function getAttribute($name, $default = null)
     {
         return isset($this->attributes[$name]) ? $this->attributes[$name] : $default;
     }
 
-    /**
-     * Returns all attributes.
-     *
-     * @return array
-     */
     public function getAttributes()
     {
         return $this->attributes;
     }
 
-    /**
-     * Set an attribute.
-     *
-     * @param string $name
-     * @param string $value
-     *
-     * @return $this
-     */
     public function setAttribute($name, $value)
     {
         if ('q' === $name) {
@@ -1121,26 +689,6 @@ class HttpAcceptHeaderItem
     }
 }
 
-
-//namespace Symfony\Component\HttpFoundation;
-
-//use Symfony\Component\HttpFoundation\Exception\ConflictingHeadersException;
-//use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
-//use Symfony\Component\HttpFoundation\Session\SessionInterface;
-
-/**
- * Request represents an HTTP request.
- *
- * The methods dealing with URL accept / return a raw path (% encoded):
- *   * getBasePath
- *   * getBaseUrl
- *   * getPathInfo
- *   * getRequestUri
- *   * getUri
- *   * getUriForPath
- *
- * @author Fabien Potencier <fabien@symfony.com>
- */
 class HttpRequest
 {
     const HEADER_FORWARDED = 0b00001; // When using RFC 7239
@@ -1162,145 +710,56 @@ class HttpRequest
     const METHOD_TRACE = 'TRACE';
     const METHOD_CONNECT = 'CONNECT';
 
-    /**
-     * @var string[]
-     */
     protected static $trustedProxies = array();
 
-    /**
-     * @var string[]
-     */
     protected static $trustedHostPatterns = array();
 
-    /**
-     * @var string[]
-     */
     protected static $trustedHosts = array();
 
     protected static $httpMethodParameterOverride = false;
 
-    /**
-     * Custom parameters.
-     *
-     * @var \Symfony\Component\HttpFoundation\ParameterBag
-     */
     public $attributes;
 
-    /**
-     * HttpRequest body parameters ($_POST).
-     *
-     * @var \Symfony\Component\HttpFoundation\ParameterBag
-     */
     public $request;
 
-    /**
-     * Query string parameters ($_GET).
-     *
-     * @var \Symfony\Component\HttpFoundation\ParameterBag
-     */
     public $query;
 
-    /**
-     * Server and execution environment parameters ($_SERVER).
-     *
-     * @var \Symfony\Component\HttpFoundation\ServerBag
-     */
     public $server;
 
-    /**
-     * Uploaded files ($_FILES).
-     *
-     * @var \Symfony\Component\HttpFoundation\HttpFileBag
-     */
     public $files;
 
-    /**
-     * Cookies ($_COOKIE).
-     *
-     * @var \Symfony\Component\HttpFoundation\ParameterBag
-     */
     public $cookies;
 
-    /**
-     * Headers (taken from the $_SERVER).
-     *
-     * @var \Symfony\Component\HttpFoundation\HeaderBag
-     */
     public $headers;
 
-    /**
-     * @var string|resource|false|null
-     */
     protected $content;
 
-    /**
-     * @var array
-     */
     protected $languages;
 
-    /**
-     * @var array
-     */
     protected $charsets;
 
-    /**
-     * @var array
-     */
     protected $encodings;
 
-    /**
-     * @var array
-     */
     protected $acceptableContentTypes;
 
-    /**
-     * @var string
-     */
     protected $pathInfo;
 
-    /**
-     * @var string
-     */
     protected $requestUri;
 
-    /**
-     * @var string
-     */
     protected $baseUrl;
 
-    /**
-     * @var string
-     */
     protected $basePath;
 
-    /**
-     * @var string
-     */
     protected $method;
 
-    /**
-     * @var string
-     */
     protected $format;
 
-    /**
-     * @var \Symfony\Component\HttpFoundation\Session\SessionInterface
-     */
     protected $session;
 
-    /**
-     * @var string
-     */
     protected $locale;
 
-    /**
-     * @var string
-     */
     protected $defaultLocale = 'en';
 
-    /**
-     * @var array
-     */
     protected static $formats;
 
     protected static $requestFactory;
@@ -1317,15 +776,6 @@ class HttpRequest
         self::HEADER_X_FORWARDED_PORT => 'host',
     );
 
-    /**
-     * Names for headers that can be trusted when
-     * using trusted proxies.
-     *
-     * The FORWARDED header is the standard as of rfc7239.
-     *
-     * The other headers are non-standard, but widely used
-     * by popular reverse proxies (like Apache mod_proxy or Amazon EC2).
-     */
     private static $trustedHeaders = array(
         self::HEADER_FORWARDED => 'FORWARDED',
         self::HEADER_X_FORWARDED_FOR => 'X_FORWARDED_FOR',
@@ -1334,33 +784,11 @@ class HttpRequest
         self::HEADER_X_FORWARDED_PORT => 'X_FORWARDED_PORT',
     );
 
-    /**
-     * @param array                $query      The GET parameters
-     * @param array                $request    The POST parameters
-     * @param array                $attributes The request attributes (parameters parsed from the PATH_INFO, ...)
-     * @param array                $cookies    The COOKIE parameters
-     * @param array                $files      The FILES parameters
-     * @param array                $server     The SERVER parameters
-     * @param string|resource|null $content    The raw body data
-     */
     public function __construct(/*array*/ $query = array(), /*array*/ $request = array(), /*array*/ $attributes = array(), /*array*/ $cookies = array(), /*array*/ $files = array(), /*array*/ $server = array(), $content = null)
     {
         $this->initialize($query, $request, $attributes, $cookies, $files, $server, $content);
     }
 
-    /**
-     * Sets the parameters for this request.
-     *
-     * This method also re-initializes all properties.
-     *
-     * @param array                $query      The GET parameters
-     * @param array                $request    The POST parameters
-     * @param array                $attributes The request attributes (parameters parsed from the PATH_INFO, ...)
-     * @param array                $cookies    The COOKIE parameters
-     * @param array                $files      The FILES parameters
-     * @param array                $server     The SERVER parameters
-     * @param string|resource|null $content    The raw body data
-     */
     public function initialize(/*array*/ $query = array(), /*array*/ $request = array(), /*array*/ $attributes = array(), /*array*/ $cookies = array(), /*array*/ $files = array(), /*array*/ $server = array(), $content = null)
     {
         $this->request = new ParameterBag($request);
@@ -1384,15 +812,10 @@ class HttpRequest
         $this->format = null;
     }
 
-    /**
-     * Creates a new request with values from PHP's super globals.
-     *
-     * @return static
-     */
     public static function createFromGlobals()
     {
         $request = self::createRequestFromFactory($_GET, $_POST, array(), $_COOKIE, $_FILES, $_SERVER);
-		$contentType = $request->headers->get('CONTENT_TYPE');
+        $contentType = $request->headers->get('CONTENT_TYPE');
 
         if (is_string($contentType) && (0 == strpos($contentType, 'application/x-www-form-urlencoded'))
             && in_array(strtoupper($request->server->get('REQUEST_METHOD', 'GET')), array('PUT', 'DELETE', 'PATCH'))
@@ -1404,22 +827,6 @@ class HttpRequest
         return $request;
     }
 
-    /**
-     * Creates a HttpRequest based on a given URI and configuration.
-     *
-     * The information contained in the URI always take precedence
-     * over the other information (server and parameters).
-     *
-     * @param string               $uri        The URI
-     * @param string               $method     The HTTP method
-     * @param array                $parameters The query (GET) or request (POST) parameters
-     * @param array                $cookies    The request cookies ($_COOKIE)
-     * @param array                $files      The request files ($_FILES)
-     * @param array                $server     The server parameters ($_SERVER)
-     * @param string|resource|null $content    The raw body data
-     *
-     * @return static
-     */
     public static function create($uri, $method = 'GET', $parameters = array(), $cookies = array(), $files = array(), $server = array(), $content = null)
     {
         $server = array_replace(array(
@@ -1512,32 +919,11 @@ class HttpRequest
         return self::createRequestFromFactory($query, $request, array(), $cookies, $files, $server, $content);
     }
 
-    /**
-     * Sets a callable able to create a HttpRequest instance.
-     *
-     * This is mainly useful when you need to override the HttpRequest class
-     * to keep BC with an existing system. It should not be used for any
-     * other purpose.
-     *
-     * @param callable|null $callable A PHP callable
-     */
     public static function setFactory($callable)
     {
         self::$requestFactory = $callable;
     }
 
-    /**
-     * Clones a request and overrides some of its parameters.
-     *
-     * @param array $query      The GET parameters
-     * @param array $request    The POST parameters
-     * @param array $attributes The request attributes (parameters parsed from the PATH_INFO, ...)
-     * @param array $cookies    The COOKIE parameters
-     * @param array $files      The FILES parameters
-     * @param array $server     The SERVER parameters
-     *
-     * @return static
-     */
     public function duplicate(/*array*/ $query = null, /*array*/ $request = null, /*array*/ $attributes = null, /*array*/ $cookies = null, /*array*/ $files = null, /*array*/ $server = null)
     {
         $dup = clone $this;
@@ -1582,12 +968,6 @@ class HttpRequest
         return $dup;
     }
 
-    /**
-     * Clones the current request.
-     *
-     * Note that the session is not cloned as duplicated requests
-     * are most of the time sub-requests of the main one.
-     */
     public function __clone()
     {
         $this->query = clone $this->query;
@@ -1599,11 +979,6 @@ class HttpRequest
         $this->headers = clone $this->headers;
     }
 
-    /**
-     * Returns the request as a string.
-     *
-     * @return string The request
-     */
     public function __toString()
     {
         try {
@@ -1630,12 +1005,6 @@ class HttpRequest
             $content;
     }
 
-    /**
-     * Overrides the PHP global variables according to this request instance.
-     *
-     * It overrides $_GET, $_POST, $_REQUEST, $_SERVER, $_COOKIE.
-     * $_FILES is never overridden, see rfc1867
-     */
     public function overrideGlobals()
     {
         $this->server->set('QUERY_STRING', self::normalizeQueryString(http_build_query($this->query->all(), '', '&')));
@@ -1667,49 +1036,22 @@ class HttpRequest
         }
     }
 
-    /**
-     * Sets a list of trusted proxies.
-     *
-     * You should only list the reverse proxies that you manage directly.
-     *
-     * @param array $proxies          A list of trusted proxies
-     * @param int   $trustedHeaderSet A bit field of HttpRequest::HEADER_*, to set which headers to trust from your proxies
-     *
-     * @throws \InvalidArgumentException When $trustedHeaderSet is invalid
-     */
     public static function setTrustedProxies(/*array*/ $proxies, /*int*/ $trustedHeaderSet)
     {
         self::$trustedProxies = $proxies;
         self::$trustedHeaderSet = $trustedHeaderSet;
     }
 
-    /**
-     * Gets the list of trusted proxies.
-     *
-     * @return array An array of trusted proxies
-     */
     public static function getTrustedProxies()
     {
         return self::$trustedProxies;
     }
 
-    /**
-     * Gets the set of trusted headers from trusted proxies.
-     *
-     * @return int A bit field of HttpRequest::HEADER_* that defines which headers are trusted from your proxies
-     */
     public static function getTrustedHeaderSet()
     {
         return self::$trustedHeaderSet;
     }
 
-    /**
-     * Sets a list of trusted host patterns.
-     *
-     * You should only list the hosts you manage using regexs.
-     *
-     * @param array $hostPatterns A list of trusted host patterns
-     */
     public static function setTrustedHosts(/*array*/ $hostPatterns)
     {
         self::$trustedHostPatterns = array_map(function ($hostPattern) {
@@ -1719,26 +1061,11 @@ class HttpRequest
         self::$trustedHosts = array();
     }
 
-    /**
-     * Gets the list of trusted host patterns.
-     *
-     * @return array An array of trusted host patterns
-     */
     public static function getTrustedHosts()
     {
         return self::$trustedHostPatterns;
     }
 
-    /**
-     * Normalizes a query string.
-     *
-     * It builds a normalized query string, where keys/value pairs are alphabetized,
-     * have consistent escaping and unneeded delimiters are removed.
-     *
-     * @param string $qs Query string
-     *
-     * @return string A normalized query string for the HttpRequest
-     */
     public static function normalizeQueryString($qs)
     {
         if ('' == $qs) {
@@ -1772,46 +1099,16 @@ class HttpRequest
         return implode('&', $parts);
     }
 
-    /**
-     * Enables support for the _method request parameter to determine the intended HTTP method.
-     *
-     * Be warned that enabling this feature might lead to CSRF issues in your code.
-     * Check that you are using CSRF tokens when required.
-     * If the HTTP method parameter override is enabled, an html-form with method "POST" can be altered
-     * and used to send a "PUT" or "DELETE" request via the _method request parameter.
-     * If these methods are not protected against CSRF, this presents a possible vulnerability.
-     *
-     * The HTTP method can only be overridden when the real HTTP method is POST.
-     */
     public static function enableHttpMethodParameterOverride()
     {
         self::$httpMethodParameterOverride = true;
     }
 
-    /**
-     * Checks whether support for the _method request parameter is enabled.
-     *
-     * @return bool True when the _method request parameter is enabled, false otherwise
-     */
     public static function getHttpMethodParameterOverride()
     {
         return self::$httpMethodParameterOverride;
     }
 
-    /**
-     * Gets a "parameter" value from any bag.
-     *
-     * This method is mainly useful for libraries that want to provide some flexibility. If you don't need the
-     * flexibility in controllers, it is better to explicitly get request parameters from the appropriate
-     * public property instead (attributes, query, request).
-     *
-     * Order of precedence: PATH (routing placeholders or custom attributes), GET, BODY
-     *
-     * @param string $key     The key
-     * @param mixed  $default The default value if the parameter key does not exist
-     *
-     * @return mixed
-     */
     public function get($key, $default = null)
     {
         if ($this !== $result = $this->attributes->get($key, $this)) {
@@ -1829,65 +1126,27 @@ class HttpRequest
         return $default;
     }
 
-    /**
-     * Gets the Session.
-     *
-     * @return SessionInterface|null The session
-     */
     public function getSession()
     {
         return $this->session;
     }
 
-    /**
-     * Whether the request contains a Session which was started in one of the
-     * previous requests.
-     *
-     * @return bool
-     */
     public function hasPreviousSession()
     {
         // the check for $this->session avoids malicious users trying to fake a session cookie with proper name
         return $this->hasSession() && $this->cookies->has($this->session->getName());
     }
 
-    /**
-     * Whether the request contains a Session object.
-     *
-     * This method does not give any information about the state of the session object,
-     * like whether the session is started or not. It is just a way to check if this HttpRequest
-     * is associated with a Session instance.
-     *
-     * @return bool true when the HttpRequest contains a Session object, false otherwise
-     */
     public function hasSession()
     {
         return null !== $this->session;
     }
 
-    /**
-     * Sets the Session.
-     *
-     * @param SessionInterface $session The Session
-     */
     public function setSession(/*SessionInterface*/ $session)
     {
         $this->session = $session;
     }
 
-    /**
-     * Returns the client IP addresses.
-     *
-     * In the returned array the most trusted IP address is first, and the
-     * least trusted one last. The "real" client IP address is the last one,
-     * but this is also the least trusted one. Trusted proxies are stripped.
-     *
-     * Use this method carefully; you should use getClientIp() instead.
-     *
-     * @return array The client IP addresses
-     *
-     * @see getClientIp()
-     */
     public function getClientIps()
     {
         $ip = $this->server->get('REMOTE_ADDR');
@@ -1900,20 +1159,6 @@ class HttpRequest
         return $trustedValues ? $trustedValues : array($ip);
     }
 
-    /**
-     * Returns the client IP address.
-     *
-     * This method can read the client IP address from the "X-Forwarded-For" header
-     * when trusted proxies were set via "setTrustedProxies()". The "X-Forwarded-For"
-     * header value is a comma+space separated list of IP addresses, the left-most
-     * being the original client, and each successive proxy that passed the request
-     * adding the IP address where it received the request from.
-     *
-     * @return string|null The client IP address
-     *
-     * @see getClientIps()
-     * @see http://en.wikipedia.org/wiki/X-Forwarded-For
-     */
     public function getClientIp()
     {
         $ipAddresses = $this->getClientIps();
@@ -1921,30 +1166,11 @@ class HttpRequest
         return $ipAddresses[0];
     }
 
-    /**
-     * Returns current script name.
-     *
-     * @return string
-     */
     public function getScriptName()
     {
         return $this->server->get('SCRIPT_NAME', $this->server->get('ORIG_SCRIPT_NAME', ''));
     }
 
-    /**
-     * Returns the path being requested relative to the executed script.
-     *
-     * The path info always starts with a /.
-     *
-     * Suppose this request is instantiated from /mysite on localhost:
-     *
-     *  * http://localhost/mysite              returns an empty string
-     *  * http://localhost/mysite/about        returns '/about'
-     *  * http://localhost/mysite/enco%20ded   returns '/enco%20ded'
-     *  * http://localhost/mysite/about?var=1  returns '/about'
-     *
-     * @return string The raw path (i.e. not urldecoded)
-     */
     public function getPathInfo()
     {
         if (null === $this->pathInfo) {
@@ -1954,18 +1180,6 @@ class HttpRequest
         return $this->pathInfo;
     }
 
-    /**
-     * Returns the root path from which this request is executed.
-     *
-     * Suppose that an index.php file instantiates this request object:
-     *
-     *  * http://localhost/index.php         returns an empty string
-     *  * http://localhost/index.php/page    returns an empty string
-     *  * http://localhost/web/index.php     returns '/web'
-     *  * http://localhost/we%20b/index.php  returns '/we%20b'
-     *
-     * @return string The raw path (i.e. not urldecoded)
-     */
     public function getBasePath()
     {
         if (null === $this->basePath) {
@@ -1975,16 +1189,6 @@ class HttpRequest
         return $this->basePath;
     }
 
-    /**
-     * Returns the root URL from which this request is executed.
-     *
-     * The base URL never ends with a /.
-     *
-     * This is similar to getBasePath(), except that it also includes the
-     * script filename (e.g. index.php) if one exists.
-     *
-     * @return string The raw URL (i.e. not urldecoded)
-     */
     public function getBaseUrl()
     {
         if (null === $this->baseUrl) {
@@ -1994,26 +1198,11 @@ class HttpRequest
         return $this->baseUrl;
     }
 
-    /**
-     * Gets the request's scheme.
-     *
-     * @return string
-     */
     public function getScheme()
     {
         return $this->isSecure() ? 'https' : 'http';
     }
 
-    /**
-     * Returns the port on which the request is made.
-     *
-     * This method can read the client port from the "X-Forwarded-Port" header
-     * when trusted proxies were set via "setTrustedProxies()".
-     *
-     * The "X-Forwarded-Port" header must contain the client port.
-     *
-     * @return int|string can be a string if fetched from the server bag
-     */
     public function getPort($onlyIfSet = false)
     {
         if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_PORT)) {
@@ -2037,31 +1226,16 @@ class HttpRequest
         return $onlyIfSet ? null : ('https' === $this->getScheme() ? 443 : 80);
     }
 
-    /**
-     * Returns the user.
-     *
-     * @return string|null
-     */
     public function getUser()
     {
         return $this->headers->get('PHP_AUTH_USER');
     }
 
-    /**
-     * Returns the password.
-     *
-     * @return string|null
-     */
     public function getPassword()
     {
         return $this->headers->get('PHP_AUTH_PW');
     }
 
-    /**
-     * Gets the user info.
-     *
-     * @return string A user name and, optionally, scheme-specific information about how to gain authorization to access the server
-     */
     public function getUserInfo()
     {
         $userinfo = $this->getUser();
@@ -2074,13 +1248,6 @@ class HttpRequest
         return $userinfo;
     }
 
-    /**
-     * Returns the HTTP host being requested.
-     *
-     * The port name will be appended to the host if it's non-standard.
-     *
-     * @return string
-     */
     public function getHttpHost()
     {
         $scheme = $this->getScheme();
@@ -2093,11 +1260,6 @@ class HttpRequest
         return $this->getHost().':'.$port;
     }
 
-    /**
-     * Returns the requested URI (path and query string).
-     *
-     * @return string The raw URI (i.e. not URI decoded)
-     */
     public function getRequestUri()
     {
         if (null === $this->requestUri) {
@@ -2107,26 +1269,11 @@ class HttpRequest
         return $this->requestUri;
     }
 
-    /**
-     * Gets the scheme and HTTP host.
-     *
-     * If the URL was called with basic authentication, the user
-     * and the password are not added to the generated string.
-     *
-     * @return string The scheme and HTTP host
-     */
     public function getSchemeAndHttpHost()
     {
         return $this->getScheme().'://'.$this->getHttpHost();
     }
 
-    /**
-     * Generates a normalized URI (URL) for the HttpRequest.
-     *
-     * @return string A normalized URI (URL) for the HttpRequest
-     *
-     * @see getQueryString()
-     */
     public function getUri( $withQS=true )
     {
         if ( $withQS ) {
@@ -2140,37 +1287,11 @@ class HttpRequest
         return $this->getSchemeAndHttpHost().$this->getBaseUrl().$this->getPathInfo().$qs;
     }
 
-    /**
-     * Generates a normalized URI for the given path.
-     *
-     * @param string $path A path to use instead of the current one
-     *
-     * @return string The normalized URI for the path
-     */
     public function getUriForPath($path)
     {
         return $this->getSchemeAndHttpHost().$this->getBaseUrl().$path;
     }
 
-    /**
-     * Returns the path as relative reference from the current HttpRequest path.
-     *
-     * Only the URIs path component (no schema, host etc.) is relevant and must be given.
-     * Both paths must be absolute and not contain relative parts.
-     * Relative URLs from one resource to another are useful when generating self-contained downloadable document archives.
-     * Furthermore, they can be used to reduce the link size in documents.
-     *
-     * Example target paths, given a base path of "/a/b/c/d":
-     * - "/a/b/c/d"     -> ""
-     * - "/a/b/c/"      -> "./"
-     * - "/a/b/"        -> "../"
-     * - "/a/b/c/other" -> "other"
-     * - "/a/x/y"       -> "../../x/y"
-     *
-     * @param string $path The target path
-     *
-     * @return string The relative target path
-     */
     public function getRelativeUriForPath($path)
     {
         // be sure that we are dealing with an absolute path
@@ -2207,14 +1328,6 @@ class HttpRequest
             ? "./$path" : $path;
     }
 
-    /**
-     * Generates the normalized query string for the HttpRequest.
-     *
-     * It builds a normalized query string, where keys/value pairs are alphabetized
-     * and have consistent escaping.
-     *
-     * @return string|null A normalized query string for the HttpRequest
-     */
     public function getQueryString()
     {
         $qs = self::normalizeQueryString($this->server->get('QUERY_STRING'));
@@ -2222,16 +1335,6 @@ class HttpRequest
         return '' === $qs ? null : $qs;
     }
 
-    /**
-     * Checks whether the request is secure or not.
-     *
-     * This method can read the client protocol from the "X-Forwarded-Proto" header
-     * when trusted proxies were set via "setTrustedProxies()".
-     *
-     * The "X-Forwarded-Proto" header must contain the protocol: "https" or "http".
-     *
-     * @return bool
-     */
     public function isSecure()
     {
         if ($this->isFromTrustedProxy() && $proto = $this->getTrustedValues(self::HEADER_X_FORWARDED_PROTO)) {
@@ -2243,18 +1346,6 @@ class HttpRequest
         return !empty($https) && 'off' !== strtolower($https);
     }
 
-    /**
-     * Returns the host name.
-     *
-     * This method can read the client host name from the "X-Forwarded-Host" header
-     * when trusted proxies were set via "setTrustedProxies()".
-     *
-     * The "X-Forwarded-Host" header must contain the client host name.
-     *
-     * @return string
-     *
-     * @throws SuspiciousOperationException when the host name is invalid or not trusted
-     */
     public function getHost()
     {
         if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_HOST)) {
@@ -2307,32 +1398,12 @@ class HttpRequest
         return $host;
     }
 
-    /**
-     * Sets the request method.
-     *
-     * @param string $method
-     */
     public function setMethod($method)
     {
         $this->method = null;
         $this->server->set('REQUEST_METHOD', $method);
     }
 
-    /**
-     * Gets the request "intended" method.
-     *
-     * If the X-HTTP-Method-Override header is set, and if the method is a POST,
-     * then it is used to determine the "real" intended HTTP method.
-     *
-     * The _method request parameter can also be used to determine the HTTP method,
-     * but only if enableHttpMethodParameterOverride() has been called.
-     *
-     * The method is always an uppercased string.
-     *
-     * @return string The request method
-     *
-     * @see getRealMethod()
-     */
     public function getMethod( $default='GET' )
     {
         if (null === $this->method) {
@@ -2350,25 +1421,11 @@ class HttpRequest
         return $this->method;
     }
 
-    /**
-     * Gets the "real" request method.
-     *
-     * @return string The request method
-     *
-     * @see getMethod()
-     */
     public function getRealMethod()
     {
         return strtoupper($this->server->get('REQUEST_METHOD', 'GET'));
     }
 
-    /**
-     * Gets the mime type associated with the format.
-     *
-     * @param string $format The format
-     *
-     * @return string The associated mime type (null if not found)
-     */
     public function getMimeType($format)
     {
         if (null === self::$formats) {
@@ -2378,13 +1435,6 @@ class HttpRequest
         return isset(self::$formats[$format]) ? self::$formats[$format][0] : null;
     }
 
-    /**
-     * Gets the mime types associated with the format.
-     *
-     * @param string $format The format
-     *
-     * @return array The associated mime types
-     */
     public static function getMimeTypes($format)
     {
         if (null === self::$formats) {
@@ -2394,13 +1444,6 @@ class HttpRequest
         return isset(self::$formats[$format]) ? self::$formats[$format] : array();
     }
 
-    /**
-     * Gets the format associated with the mime type.
-     *
-     * @param string $mimeType The associated mime type
-     *
-     * @return string|null The format (null if not found)
-     */
     public function getFormat($mimeType)
     {
         $canonicalMimeType = null;
@@ -2422,12 +1465,6 @@ class HttpRequest
         }
     }
 
-    /**
-     * Associates a format with mime types.
-     *
-     * @param string       $format    The format
-     * @param string|array $mimeTypes The associated mime types (the preferred one must be the first as it will be used as the content type)
-     */
     public function setFormat($format, $mimeTypes)
     {
         if (null === self::$formats) {
@@ -2437,19 +1474,6 @@ class HttpRequest
         self::$formats[$format] = is_array($mimeTypes) ? $mimeTypes : array($mimeTypes);
     }
 
-    /**
-     * Gets the request format.
-     *
-     * Here is the process to determine the format:
-     *
-     *  * format defined by the user (with setRequestFormat())
-     *  * _format request attribute
-     *  * $default
-     *
-     * @param string $default The default format
-     *
-     * @return string The request format
-     */
     public function getRequestFormat($default = 'html')
     {
         if (null === $this->format) {
@@ -2459,31 +1483,16 @@ class HttpRequest
         return null === $this->format ? $default : $this->format;
     }
 
-    /**
-     * Sets the request format.
-     *
-     * @param string $format The request format
-     */
     public function setRequestFormat($format)
     {
         $this->format = $format;
     }
 
-    /**
-     * Gets the format associated with the request.
-     *
-     * @return string|null The format (null if no content type is present)
-     */
     public function getContentType()
     {
         return $this->getFormat($this->headers->get('CONTENT_TYPE'));
     }
 
-    /**
-     * Sets the default locale.
-     *
-     * @param string $locale
-     */
     public function setDefaultLocale($locale)
     {
         $this->defaultLocale = $locale;
@@ -2493,57 +1502,26 @@ class HttpRequest
         }
     }
 
-    /**
-     * Get the default locale.
-     *
-     * @return string
-     */
     public function getDefaultLocale()
     {
         return $this->defaultLocale;
     }
 
-    /**
-     * Sets the locale.
-     *
-     * @param string $locale
-     */
     public function setLocale($locale)
     {
         $this->setPhpDefaultLocale($this->locale = $locale);
     }
 
-    /**
-     * Get the locale.
-     *
-     * @return string
-     */
     public function getLocale()
     {
         return null === $this->locale ? $this->defaultLocale : $this->locale;
     }
 
-    /**
-     * Checks if the request method is of specified type.
-     *
-     * @param string $method Uppercase request method (GET, POST etc)
-     *
-     * @return bool
-     */
     public function isMethod($method)
     {
         return $this->getMethod() === strtoupper($method);
     }
 
-    /**
-     * Checks whether or not the method is safe.
-     *
-     * @see https://tools.ietf.org/html/rfc7231#section-4.2.1
-     *
-     * @param bool $andCacheable Adds the additional condition that the method should be cacheable. True by default.
-     *
-     * @return bool
-     */
     public function isMethodSafe(/* $andCacheable = true */)
     {
         if (!func_num_args() || func_get_arg(0)) {
@@ -2554,39 +1532,16 @@ class HttpRequest
         return in_array($this->getMethod(), array('GET', 'HEAD', 'OPTIONS', 'TRACE'));
     }
 
-    /**
-     * Checks whether or not the method is idempotent.
-     *
-     * @return bool
-     */
     public function isMethodIdempotent()
     {
         return in_array($this->getMethod(), array('HEAD', 'GET', 'PUT', 'DELETE', 'TRACE', 'OPTIONS', 'PURGE'));
     }
 
-    /**
-     * Checks whether the method is cacheable or not.
-     *
-     * @see https://tools.ietf.org/html/rfc7231#section-4.2.3
-     *
-     * @return bool
-     */
     public function isMethodCacheable()
     {
         return in_array($this->getMethod(), array('GET', 'HEAD'));
     }
 
-    /**
-     * Returns the protocol version.
-     *
-     * If the application is behind a proxy, the protocol version used in the
-     * requests between the client and the proxy and between the proxy and the
-     * server might be different. This returns the former (from the "Via" header)
-     * if the proxy is trusted (see "setTrustedProxies()"), otherwise it returns
-     * the latter (from the "SERVER_PROTOCOL" server parameter).
-     *
-     * @return string
-     */
     public function getProtocolVersion()
     {
         if ($this->isFromTrustedProxy()) {
@@ -2600,15 +1555,6 @@ class HttpRequest
         return $this->server->get('SERVER_PROTOCOL');
     }
 
-    /**
-     * Returns the request body content.
-     *
-     * @param bool $asResource If true, a resource will be returned
-     *
-     * @return string|resource The request body content or a resource to read the body stream
-     *
-     * @throws \LogicException
-     */
     public function getContent($asResource = false)
     {
         $currentContentIsResource = is_resource($this->content);
@@ -2647,31 +1593,16 @@ class HttpRequest
         return $this->content;
     }
 
-    /**
-     * Gets the Etags.
-     *
-     * @return array The entity tags
-     */
     public function getETags()
     {
         return preg_split('/\s*,\s*/', $this->headers->get('if_none_match'), null, PREG_SPLIT_NO_EMPTY);
     }
 
-    /**
-     * @return bool
-     */
     public function isNoCache()
     {
         return $this->headers->hasCacheControlDirective('no-cache') || 'no-cache' == $this->headers->get('Pragma');
     }
 
-    /**
-     * Returns the preferred language.
-     *
-     * @param array $locales An array of ordered available locales
-     *
-     * @return string|null The preferred locale
-     */
     public function getPreferredLanguage(/*array*/ $locales = null)
     {
         $preferredLanguages = $this->getLanguages();
@@ -2700,11 +1631,6 @@ class HttpRequest
         return isset($preferredLanguages[0]) ? $preferredLanguages[0] : $locales[0];
     }
 
-    /**
-     * Gets a list of languages acceptable by the client browser.
-     *
-     * @return array Languages ordered in the user browser preferences
-     */
     public function getLanguages()
     {
         if (null !== $this->languages) {
@@ -2740,11 +1666,6 @@ class HttpRequest
         return $this->languages;
     }
 
-    /**
-     * Gets a list of charsets acceptable by the client browser.
-     *
-     * @return array List of charsets in preferable order
-     */
     public function getCharsets()
     {
         if (null !== $this->charsets) {
@@ -2754,11 +1675,6 @@ class HttpRequest
         return $this->charsets = array_keys(HttpAcceptHeader::fromString($this->headers->get('Accept-Charset'))->all());
     }
 
-    /**
-     * Gets a list of encodings acceptable by the client browser.
-     *
-     * @return array List of encodings in preferable order
-     */
     public function getEncodings()
     {
         if (null !== $this->encodings) {
@@ -2768,11 +1684,6 @@ class HttpRequest
         return $this->encodings = array_keys(HttpAcceptHeader::fromString($this->headers->get('Accept-Encoding'))->all());
     }
 
-    /**
-     * Gets a list of content types acceptable by the client browser.
-     *
-     * @return array List of content types in preferable order
-     */
     public function getAcceptableContentTypes()
     {
         if (null !== $this->acceptableContentTypes) {
@@ -2782,28 +1693,10 @@ class HttpRequest
         return $this->acceptableContentTypes = array_keys(HttpAcceptHeader::fromString($this->headers->get('Accept'))->all());
     }
 
-    /**
-     * Returns true if the request is a XMLHttpRequest.
-     *
-     * It works if your JavaScript library sets an X-Requested-With HTTP header.
-     * It is known to work with common JavaScript frameworks:
-     *
-     * @see http://en.wikipedia.org/wiki/List_of_Ajax_frameworks#JavaScript
-     *
-     * @return bool true if the request is an XMLHttpRequest, false otherwise
-     */
     public function isXmlHttpRequest()
     {
         return 'xmlhttprequest' == strtolower($this->headers->get('X-Requested-With', ''));
     }
-
-    /*
-     * The following methods are derived from code of the Zend Framework (1.10dev - 2010-01-24)
-     *
-     * Code subject to the new BSD license (http://framework.zend.com/license/new-bsd).
-     *
-     * Copyright (c) 2005-2010 Zend Technologies USA Inc. (http://www.zend.com)
-     */
 
     protected function prepareRequestUri()
     {
@@ -2847,11 +1740,6 @@ class HttpRequest
         return $requestUri;
     }
 
-    /**
-     * Prepares the base URL.
-     *
-     * @return string
-     */
     protected function prepareBaseUrl()
     {
         $filename = basename($this->server->get('SCRIPT_FILENAME'));
@@ -2916,11 +1804,6 @@ class HttpRequest
         return rtrim($baseUrl, '/'.DIRECTORY_SEPARATOR);
     }
 
-    /**
-     * Prepares the base path.
-     *
-     * @return string base path
-     */
     protected function prepareBasePath()
     {
         $baseUrl = $this->getBaseUrl();
@@ -2942,11 +1825,6 @@ class HttpRequest
         return rtrim($basePath, '/');
     }
 
-    /**
-     * Prepares the path info.
-     *
-     * @return string path info
-     */
     protected function preparePathInfo()
     {
         if (null === ($requestUri = $this->getRequestUri())) {
@@ -2974,9 +1852,6 @@ class HttpRequest
         return (string) $pathInfo;
     }
 
-    /**
-     * Initializes HTTP request formats.
-     */
     protected static function initializeFormats()
     {
         self::$formats = array(
@@ -3007,12 +1882,6 @@ class HttpRequest
         }
     }
 
-    /*
-     * Returns the prefix as encoded in the string when the string starts with
-     * the given prefix, false otherwise.
-     *
-     * @return string|false The prefix as it is encoded in $string, or false
-     */
     private function getUrlencodedPrefix(/*string*/ $string, /*string*/ $prefix)
     {
         if (0 !== strpos(rawurldecode($string), $prefix)) {
@@ -3043,14 +1912,6 @@ class HttpRequest
         return new self($query, $request, $attributes, $cookies, $files, $server, $content);
     }
 
-    /**
-     * Indicates whether this request originated from a trusted proxy.
-     *
-     * This can be useful to determine whether or not to trust the
-     * contents of a proxy-specific header.
-     *
-     * @return bool true if the request came from a trusted proxy, false otherwise
-     */
     public function isFromTrustedProxy()
     {
         return self::$trustedProxies && HttpIpUtils::checkIp($this->server->get('REMOTE_ADDR'), self::$trustedProxies);
@@ -3129,14 +1990,6 @@ class HttpRequest
     }
 }
 
-
-//namespace Symfony\Component\HttpFoundation;
-
-/**
- * Represents a cookie.
- *
- * @author Johannes M. Schmitt <schmittjoh@gmail.com>
- */
 class HttpCookie
 {
     protected $name;
@@ -3152,14 +2005,6 @@ class HttpCookie
     const SAMESITE_LAX = 'lax';
     const SAMESITE_STRICT = 'strict';
 
-    /**
-     * Creates cookie from raw header string.
-     *
-     * @param string $cookie
-     * @param bool   $decode
-     *
-     * @return static
-     */
     public static function fromString($cookie, $decode = false)
     {
         $data = array(
@@ -3202,19 +2047,6 @@ class HttpCookie
     }
 
 
-    /**
-     * @param string                        $name     The name of the cookie
-     * @param string|null                   $value    The value of the cookie
-     * @param int|string|\DateTimeInterface $expire   The time the cookie expires
-     * @param string                        $path     The path on the server in which the cookie will be available on
-     * @param string|null                   $domain   The domain that the cookie is available to
-     * @param bool                          $secure   Whether the cookie should only be transmitted over a secure HTTPS connection from the client
-     * @param bool                          $httpOnly Whether the cookie will be made accessible only through the HTTP protocol
-     * @param bool                          $raw      Whether the cookie value should be sent with no url encoding
-     * @param string|null                   $sameSite Whether the cookie will be available for cross-site requests
-     *
-     * @throws \InvalidArgumentException
-     */
     public function __construct(/*string*/ $name, /*string*/ $value = null, $expire = 0, /*?string*/ $path = '/', /*string*/ $domain = null, /*bool*/ $secure = false, /*bool*/ $httpOnly = true, /*bool*/ $raw = false, /*string*/ $sameSite = null)
     {
         // from PHP source code
@@ -3257,11 +2089,6 @@ class HttpCookie
         $this->sameSite = $sameSite;
     }
 
-    /**
-     * Returns the cookie as a string.
-     *
-     * @return string The cookie
-     */
     public function __toString()
     {
         $str = ($this->isRaw() ? $this->getName() : urlencode($this->getName())).'=';
@@ -3299,142 +2126,67 @@ class HttpCookie
         return $str;
     }
 
-    /**
-     * Gets the name of the cookie.
-     *
-     * @return string
-     */
     public function getName()
     {
         return $this->name;
     }
 
-    /**
-     * Gets the value of the cookie.
-     *
-     * @return string|null
-     */
     public function getValue()
     {
         return $this->value;
     }
 
-    /**
-     * Gets the domain that the cookie is available to.
-     *
-     * @return string|null
-     */
     public function getDomain()
     {
         return $this->domain;
     }
 
-    /**
-     * Gets the time the cookie expires.
-     *
-     * @return int
-     */
     public function getExpiresTime()
     {
         return $this->expire;
     }
 
-    /**
-     * Gets the max-age attribute.
-     *
-     * @return int
-     */
     public function getMaxAge()
     {
         return 0 != $this->expire ? $this->expire - time() : 0;
     }
 
-    /**
-     * Gets the path on the server in which the cookie will be available on.
-     *
-     * @return string
-     */
     public function getPath()
     {
         return $this->path;
     }
 
-    /**
-     * Checks whether the cookie should only be transmitted over a secure HTTPS connection from the client.
-     *
-     * @return bool
-     */
     public function isSecure()
     {
         return $this->secure;
     }
 
-    /**
-     * Checks whether the cookie will be made accessible only through the HTTP protocol.
-     *
-     * @return bool
-     */
     public function isHttpOnly()
     {
         return $this->httpOnly;
     }
 
-    /**
-     * Whether this cookie is about to be cleared.
-     *
-     * @return bool
-     */
     public function isCleared()
     {
         return $this->expire < time();
     }
 
-    /**
-     * Checks if the cookie value should be sent with no url encoding.
-     *
-     * @return bool
-     */
     public function isRaw()
     {
         return $this->raw;
     }
 
-    /**
-     * Gets the SameSite attribute.
-     *
-     * @return string|null
-     */
     public function getSameSite()
     {
         return $this->sameSite;
     }
 }
 
-
-/*
- * This file is part of the Symfony package.
- *
- * (c) Fabien Potencier <fabien@symfony.com>
- *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
- */
-
-//namespace Symfony\Component\HttpFoundation;
-
-/**
- * HeaderBag is a container for HTTP headers.
- *
- * @author Fabien Potencier <fabien@symfony.com>
- */
 class HttpHeaderBag implements \IteratorAggregate, \Countable
 {
     protected $headers = array();
     protected $cacheControl = array();
 
-    /**
-     * @param array $headers An array of HTTP headers
-     */
     public function __construct(/*array*/ $headers = array())
     {
         foreach ($headers as $key => $values) {
@@ -3442,11 +2194,6 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
         }
     }
 
-    /**
-     * Returns the headers as a string.
-     *
-     * @return string The headers
-     */
     public function __toString()
     {
         if (!$headers = $this->all()) {
@@ -3466,42 +2213,22 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
         return $content;
     }
 
-    /**
-     * Returns the headers.
-     *
-     * @return array An array of headers
-     */
     public function all()
     {
         return $this->headers;
     }
 
-    /**
-     * Returns the parameter keys.
-     *
-     * @return array An array of parameter keys
-     */
     public function keys()
     {
         return array_keys($this->all());
     }
 
-    /**
-     * Replaces the current HTTP headers by a new set.
-     *
-     * @param array $headers An array of HTTP headers
-     */
     public function replace(/*array*/ $headers = array())
     {
         $this->headers = array();
         $this->add($headers);
     }
 
-    /**
-     * Adds new headers the current HTTP headers set.
-     *
-     * @param array $headers An array of HTTP headers
-     */
     public function add(/*array*/ $headers)
     {
         foreach ($headers as $key => $values) {
@@ -3509,15 +2236,6 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
         }
     }
 
-    /**
-     * Returns a header value by name.
-     *
-     * @param string          $key     The header name
-     * @param string|string[] $default The default value
-     * @param bool            $first   Whether to return the first value or all header values
-     *
-     * @return string|string[] The first header value or default value if $first is true, an array of values otherwise
-     */
     public function get($key, $default = null, $first = true)
     {
         $key = str_replace('_', '-', strtolower($key));
@@ -3538,13 +2256,6 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
         return $headers[$key];
     }
 
-    /**
-     * Sets a header by name.
-     *
-     * @param string          $key     The key
-     * @param string|string[] $values  The value or an array of values
-     * @param bool            $replace Whether to replace the actual value or not (true by default)
-     */
     public function set($key, $values, $replace = true)
     {
         $key = str_replace('_', '-', strtolower($key));
@@ -3570,36 +2281,16 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
         }
     }
 
-    /**
-     * Returns true if the HTTP header is defined.
-     *
-     * @param string $key The HTTP header
-     *
-     * @return bool true if the parameter exists, false otherwise
-     */
     public function has($key)
     {
         return array_key_exists(str_replace('_', '-', strtolower($key)), $this->all());
     }
 
-    /**
-     * Returns true if the given HTTP header contains the given value.
-     *
-     * @param string $key   The HTTP header name
-     * @param string $value The HTTP value
-     *
-     * @return bool true if the value is contained in the header, false otherwise
-     */
     public function contains($key, $value)
     {
         return in_array($value, $this->get($key, null, false));
     }
 
-    /**
-     * Removes a header.
-     *
-     * @param string $key The HTTP header name
-     */
     public function remove($key)
     {
         $key = str_replace('_', '-', strtolower($key));
@@ -3611,16 +2302,6 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
         }
     }
 
-    /**
-     * Returns the HTTP header value converted to a date.
-     *
-     * @param string    $key     The parameter key
-     * @param \DateTime $default The default value
-     *
-     * @return null|\DateTime The parsed DateTime or the default value if the header does not exist
-     *
-     * @throws \RuntimeException When the HTTP header is not parseable
-     */
     public function getDate($key, /*\DateTime*/ $default = null)
     {
         if (null === $value = $this->get($key)) {
@@ -3634,12 +2315,6 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
         return $date;
     }
 
-    /**
-     * Adds a custom Cache-Control directive.
-     *
-     * @param string $key   The Cache-Control directive name
-     * @param mixed  $value The Cache-Control directive value
-     */
     public function addCacheControlDirective($key, $value = true)
     {
         $this->cacheControl[$key] = $value;
@@ -3647,35 +2322,16 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
         $this->set('Cache-Control', $this->getCacheControlHeader());
     }
 
-    /**
-     * Returns true if the Cache-Control directive is defined.
-     *
-     * @param string $key The Cache-Control directive
-     *
-     * @return bool true if the directive exists, false otherwise
-     */
     public function hasCacheControlDirective($key)
     {
         return array_key_exists($key, $this->cacheControl);
     }
 
-    /**
-     * Returns a Cache-Control directive value by name.
-     *
-     * @param string $key The directive name
-     *
-     * @return mixed|null The directive value if defined, null otherwise
-     */
     public function getCacheControlDirective($key)
     {
         return array_key_exists($key, $this->cacheControl) ? $this->cacheControl[$key] : null;
     }
 
-    /**
-     * Removes a Cache-Control directive.
-     *
-     * @param string $key The Cache-Control directive
-     */
     public function removeCacheControlDirective($key)
     {
         unset($this->cacheControl[$key]);
@@ -3683,24 +2339,14 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
         $this->set('Cache-Control', $this->getCacheControlHeader());
     }
 
-    /**
-     * Returns an iterator for headers.
-     *
-     * @return \ArrayIterator An \ArrayIterator instance
-     */
-	#[\ReturnTypeWillChange]
+    #[\ReturnTypeWillChange]
     public function getIterator()
     {
         return new \ArrayIterator($this->headers);
     }
 
-    /**
-     * Returns the number of headers.
-     *
-     * @return int The number of headers
-     */
     #[\ReturnTypeWillChange]
-	public function count()
+    public function count()
     {
         return count($this->headers);
     }
@@ -3724,13 +2370,6 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
         return implode(', ', $parts);
     }
 
-    /**
-     * Parses a Cache-Control HTTP header.
-     *
-     * @param string $header The value of the Cache-Control HTTP header
-     *
-     * @return array An array representing the attribute values
-     */
     protected function parseCacheControl($header)
     {
         $cacheControl = array();
@@ -3743,23 +2382,6 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
     }
 }
 
-
-/*
- * This file is part of the Symfony package.
- *
- * (c) Fabien Potencier <fabien@symfony.com>
- *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
- */
-
-//namespace Symfony\Component\HttpFoundation;
-
-/**
- * ResponseHeaderBag is a container for Response HTTP headers.
- *
- * @author Fabien Potencier <fabien@symfony.com>
- */
 class HttpResponseHeaderBag extends HttpHeaderBag
 {
     const COOKIES_FLAT = 'flat';
@@ -3786,11 +2408,6 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         }
     }
 
-    /**
-     * Returns the headers, with original capitalizations.
-     *
-     * @return array An array of headers
-     */
     public function allPreserveCase()
     {
         $headers = array();
@@ -3811,9 +2428,6 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         return $headers;
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function replace(/*array*/ $headers = array())
     {
         $this->headerNames = array();
@@ -3829,9 +2443,6 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         }
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function all()
     {
         $headers = parent::all();
@@ -3842,9 +2453,6 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         return $headers;
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function set($key, $values, $replace = true)
     {
         $uniqueKey = str_replace('_', '-', strtolower($key));
@@ -3874,9 +2482,6 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         }
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function remove($key)
     {
         $uniqueKey = str_replace('_', '-', strtolower($key));
@@ -3899,17 +2504,11 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         }
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function hasCacheControlDirective($key)
     {
         return array_key_exists($key, $this->computedCacheControl);
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getCacheControlDirective($key)
     {
         return array_key_exists($key, $this->computedCacheControl) ? $this->computedCacheControl[$key] : null;
@@ -3921,13 +2520,6 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         $this->headerNames['set-cookie'] = 'Set-HttpCookie';
     }
 
-    /**
-     * Removes a cookie from the array, but does not unset it in the browser.
-     *
-     * @param string $name
-     * @param string $path
-     * @param string $domain
-     */
     public function removeCookie($name, $path = '/', $domain = null)
     {
         if (null === $path) {
@@ -3949,15 +2541,6 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         }
     }
 
-    /**
-     * Returns an array with all cookies.
-     *
-     * @param string $format
-     *
-     * @return array
-     *
-     * @throws \InvalidArgumentException When the $format is invalid
-     */
     public function getCookies($format = self::COOKIES_FLAT)
     {
         if (!in_array($format, array(self::COOKIES_FLAT, self::COOKIES_ARRAY))) {
@@ -3980,35 +2563,11 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         return $flattenedCookies;
     }
 
-    /**
-     * Clears a cookie in the browser.
-     *
-     * @param string $name
-     * @param string $path
-     * @param string $domain
-     * @param bool   $secure
-     * @param bool   $httpOnly
-     */
     public function clearCookie($name, $path = '/', $domain = null, $secure = false, $httpOnly = true)
     {
         $this->setCookie(new HttpCookie($name, null, 1, $path, $domain, $secure, $httpOnly));
     }
 
-    /**
-     * Generates a HTTP Content-Disposition field-value.
-     *
-     * @param string $disposition      One of "inline" or "attachment"
-     * @param string $filename         A unicode string
-     * @param string $filenameFallback A string containing only ASCII characters that
-     *                                 is semantically equivalent to $filename. If the filename is already ASCII,
-     *                                 it can be omitted, or just copied from $filename
-     *
-     * @return string A string suitable for use as a Content-Disposition field-value
-     *
-     * @throws \InvalidArgumentException
-     *
-     * @see RFC 6266
-     */
     public function makeDisposition($disposition, $filename, $filenameFallback = '')
     {
         if (!in_array($disposition, array(self::DISPOSITION_ATTACHMENT, self::DISPOSITION_INLINE))) {
@@ -4043,14 +2602,6 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         return $output;
     }
 
-    /**
-     * Returns the calculated value of the cache-control header.
-     *
-     * This considers several other headers and calculates or modifies the
-     * cache-control header to a sensible, conservative value.
-     *
-     * @return string
-     */
     protected function computeCacheControlValue()
     {
         if (!$this->cacheControl && !$this->has('ETag') && !$this->has('Last-Modified') && !$this->has('Expires')) {
@@ -4083,23 +2634,6 @@ class HttpResponseHeaderBag extends HttpHeaderBag
     }
 }
 
-
-/*
- * This file is part of the Symfony package.
- *
- * (c) Fabien Potencier <fabien@symfony.com>
- *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
- */
-
-//namespace Symfony\Component\HttpFoundation;
-
-/**
- * Response represents an HTTP response.
- *
- * @author Fabien Potencier <fabien@symfony.com>
- */
 class HttpResponse
 {
     const HTTP_CONTINUE = 100;
@@ -4167,14 +2701,8 @@ class HttpResponse
 
     protected static $trustXSendfileTypeHeader = false;
 
-    /**
-     * @var \Symfony\Component\HttpFoundation\HttpResponseHeaderBag
-     */
     public $headers;
 
-    /**
-     * @var string
-     */
     protected $content;
     protected $file = null;
     protected $maxlen;
@@ -4185,37 +2713,14 @@ class HttpResponse
     protected $streamed;
     private $headersSent;
 
-    /**
-     * @var string
-     */
     protected $version;
 
-    /**
-     * @var int
-     */
     protected $statusCode;
 
-    /**
-     * @var string
-     */
     protected $statusText;
 
-    /**
-     * @var string
-     */
     protected $charset;
 
-    /**
-     * Status codes translation table.
-     *
-     * The list of codes is complete according to the
-     * {@link http://www.iana.org/assignments/http-status-codes/ Hypertext Transfer Protocol (HTTP) Status Code Registry}
-     * (last updated 2016-03-01).
-     *
-     * Unless otherwise noted, the status code is defined in RFC2616.
-     *
-     * @var array
-     */
     public static $statusTexts = array(
         100 => 'Continue',
         101 => 'Switching Protocols',
@@ -4281,9 +2786,6 @@ class HttpResponse
         511 => 'Network Authentication Required',                             // RFC6585
     );
 
-    /**
-     * @throws \InvalidArgumentException When the HTTP status code is not valid
-     */
     public function __construct($content = '', /*int*/ $status = 200, /*array*/ $headers = array())
     {
         $this->headers = new HttpResponseHeaderBag($headers);
@@ -4295,20 +2797,6 @@ class HttpResponse
         $this->headersSent = false;
     }
 
-    /**
-     * Factory method for chainability.
-     *
-     * Example:
-     *
-     *     return HttpResponse::create($body, 200)
-     *         ->setSharedMaxAge(300);
-     *
-     * @param mixed $content The response content, see setContent()
-     * @param int   $status  The response status code
-     * @param array $headers An array of response headers
-     *
-     * @return static
-     */
     public static function create($content = '', $status = 200, $headers = array())
     {
         return new self($content, $status, $headers);
@@ -4319,17 +2807,6 @@ class HttpResponse
         self::$trustXSendfileTypeHeader = (bool)$enable;
     }
 
-    /**
-     * Returns the HttpResponse as an HTTP string.
-     *
-     * The string representation of the HttpResponse is the same as the
-     * one that will be sent to the client only if the prepare() method
-     * has been called before.
-     *
-     * @return string The HttpResponse as an HTTP string
-     *
-     * @see prepare()
-     */
     public function __toString()
     {
         return
@@ -4338,23 +2815,11 @@ class HttpResponse
             $this->getContent();
     }
 
-    /**
-     * Clones the current HttpResponse instance.
-     */
     public function __clone()
     {
         $this->headers = clone $this->headers;
     }
 
-    /**
-     * Prepares the HttpResponse before it is sent to the client.
-     *
-     * This method tweaks the HttpResponse to ensure that it is
-     * compliant with RFC 2616. Most of the changes are based on
-     * the Request that is "associated" with this HttpResponse.
-     *
-     * @return $this
-     */
     public function prepare( /*HttpRequest*/ $request )
     {
         if ( $this->file ) {
@@ -4513,11 +2978,6 @@ class HttpResponse
         return $lastModified->format('D, d M Y H:i:s').' GMT' === $header;
     }
 
-    /**
-     * Sends HTTP headers.
-     *
-     * @return $this
-     */
     public function sendHeaders()
     {
         // headers have already been sent by the developer
@@ -4549,11 +3009,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Sends content for the current web response.
-     *
-     * @return $this
-     */
     public function sendContent()
     {
         if ( $this->callback ) {
@@ -4594,11 +3049,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Sends HTTP headers and content.
-     *
-     * @return $this
-     */
     public function send()
     {
         $this->sendHeaders();
@@ -4613,17 +3063,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Sets the response content.
-     *
-     * Valid types are strings, numbers, null, and objects that implement a __toString() method.
-     *
-     * @param mixed $content Content that can be cast to string
-     *
-     * @return $this
-     *
-     * @throws \UnexpectedValueException
-     */
     public function setContent($content)
     {
         if (null !== $content && !is_string($content) && !is_numeric($content) && !is_callable(array($content, '__toString'))) {
@@ -4658,11 +3097,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Gets the file.
-     *
-     * @return File The file to stream
-     */
     public function getFile()
     {
         return $this->file;
@@ -4687,9 +3121,6 @@ class HttpResponse
         return $this->callback;
     }
 
-    /**
-     * Automatically sets the Last-Modified header according the file modification date.
-     */
     public function setAutoLastModified()
     {
         $this->setLastModified(\DateTime::createFromFormat('U', filemtime($this->file)));
@@ -4697,9 +3128,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Automatically sets the ETag header according to the checksum of the file.
-     */
     public function setAutoEtag()
     {
         $this->setEtag(base64_encode(hash_file('sha256', $this->file, true)));
@@ -4707,15 +3135,6 @@ class HttpResponse
         return $this;
     }
 
-        /**
-     * Sets the Content-Disposition header with the given filename.
-     *
-     * @param string $disposition      HttpResponseHeaderBag::DISPOSITION_INLINE or HttpResponseHeaderBag::DISPOSITION_ATTACHMENT
-     * @param string $filename         Optionally use this UTF-8 encoded filename instead of the real name of the file
-     * @param string $filenameFallback A fallback filename, containing only ASCII characters. Defaults to an automatically encoded filename
-     *
-     * @return $this
-     */
     public function setContentDisposition($disposition, $filename = '', $filenameFallback = '')
     {
         if ('' === $filename) {
@@ -4742,25 +3161,11 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Returns the target URL.
-     *
-     * @return string target URL
-     */
     public function getTargetUrl()
     {
         return $this->targetUrl;
     }
 
-    /**
-     * Sets the redirect target of this response.
-     *
-     * @param string $url The URL to redirect to
-     *
-     * @return $this
-     *
-     * @throws \InvalidArgumentException
-     */
     public function setTargetUrl($url, $statusCode=302)
     {
         if (empty($url)) {
@@ -4794,23 +3199,11 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Gets the current response content.
-     *
-     * @return string Content
-     */
     public function getContent()
     {
         return $this->content;
     }
 
-    /**
-     * Sets the HTTP protocol version (1.0 or 1.1).
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setProtocolVersion(/*string*/ $version)
     {
         $this->version = $version;
@@ -4818,28 +3211,11 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Gets the HTTP protocol version.
-     *
-     * @final
-     */
     public function getProtocolVersion()/*: string*/
     {
         return $this->version;
     }
 
-    /**
-     * Sets the response status code.
-     *
-     * If the status text is null it will be automatically populated for the known
-     * status codes and left empty otherwise.
-     *
-     * @return $this
-     *
-     * @throws \InvalidArgumentException When the HTTP status code is not valid
-     *
-     * @final
-     */
     public function setStatusCode(/*int*/ $code, $text = null)
     {
         $this->statusCode = $code;
@@ -4864,23 +3240,11 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Retrieves the status code for the current web response.
-     *
-     * @final
-     */
     public function getStatusCode()/*: int*/
     {
         return $this->statusCode;
     }
 
-    /**
-     * Sets the response charset.
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setCharset(/*string*/ $charset)
     {
         $this->charset = $charset;
@@ -4888,27 +3252,11 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Retrieves the response charset.
-     *
-     * @final
-     */
     public function getCharset()/*: ?string*/
     {
         return $this->charset;
     }
 
-    /**
-     * Returns true if the response is worth caching under any circumstance.
-     *
-     * Responses marked "private" with an explicit Cache-Control directive are
-     * considered uncacheable.
-     *
-     * Responses with neither a freshness lifetime (Expires, max-age) nor cache
-     * validator (Last-Modified, ETag) are considered uncacheable.
-     *
-     * @final
-     */
     public function isCacheable()/*: bool*/
     {
         if (!in_array($this->statusCode, array(200, 203, 300, 301, 302, 404, 410))) {
@@ -4922,40 +3270,16 @@ class HttpResponse
         return $this->isValidateable() || $this->isFresh();
     }
 
-    /**
-     * Returns true if the response is "fresh".
-     *
-     * Fresh responses may be served from cache without any interaction with the
-     * origin. A response is considered fresh when it includes a Cache-Control/max-age
-     * indicator or Expires header and the calculated age is less than the freshness lifetime.
-     *
-     * @final
-     */
     public function isFresh()/*: bool*/
     {
         return $this->getTtl() > 0;
     }
 
-    /**
-     * Returns true if the response includes headers that can be used to validate
-     * the response with the origin server using a conditional GET request.
-     *
-     * @final
-     */
     public function isValidateable()/*: bool*/
     {
         return $this->headers->has('Last-Modified') || $this->headers->has('ETag');
     }
 
-    /**
-     * Marks the response as "private".
-     *
-     * It makes the response ineligible for serving other clients.
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setPrivate()
     {
         $this->headers->removeCacheControlDirective('public');
@@ -4964,15 +3288,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Marks the response as "public".
-     *
-     * It makes the response eligible for serving other clients.
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setPublic()
     {
         $this->headers->addCacheControlDirective('public');
@@ -4981,13 +3296,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Marks the response as "immutable".
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setImmutable(/*bool*/ $immutable = true)
     {
         if ($immutable) {
@@ -4999,50 +3307,21 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Returns true if the response is marked as "immutable".
-     *
-     * @final
-     */
     public function isImmutable()/*: bool*/
     {
         return $this->headers->hasCacheControlDirective('immutable');
     }
 
-    /**
-     * Returns true if the response must be revalidated by caches.
-     *
-     * This method indicates that the response must not be served stale by a
-     * cache in any circumstance without first revalidating with the origin.
-     * When present, the TTL of the response should not be overridden to be
-     * greater than the value provided by the origin.
-     *
-     * @final
-     */
     public function mustRevalidate()/*: bool*/
     {
         return $this->headers->hasCacheControlDirective('must-revalidate') || $this->headers->hasCacheControlDirective('proxy-revalidate');
     }
 
-    /**
-     * Returns the Date header as a DateTime instance.
-     *
-     * @throws \RuntimeException When the header is not parseable
-     *
-     * @final
-     */
     public function getDate()/*: ?\DateTimeInterface*/
     {
         return $this->headers->getDate('Date');
     }
 
-    /**
-     * Sets the Date header.
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setDate(/*\DateTimeInterface*/ $date)
     {
         if ($date instanceof \DateTime) {
@@ -5055,11 +3334,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Returns the age of the response in seconds.
-     *
-     * @final
-     */
     public function getAge()/*: int*/
     {
         if (null !== $age = $this->headers->get('Age')) {
@@ -5069,11 +3343,6 @@ class HttpResponse
         return max(time() - $this->getDate()->format('U'), 0);
     }
 
-    /**
-     * Marks the response stale by setting the Age header to be equal to the maximum age of the response.
-     *
-     * @return $this
-     */
     public function expire()
     {
         if ($this->isFresh()) {
@@ -5083,11 +3352,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Returns the value of the Expires header as a DateTime instance.
-     *
-     * @final
-     */
     public function getExpires()/*: ?\DateTimeInterface*/
     {
         try {
@@ -5098,15 +3362,6 @@ class HttpResponse
         }
     }
 
-    /**
-     * Sets the Expires HTTP header with a DateTime instance.
-     *
-     * Passing null as value will remove the header.
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setExpires(/*\DateTimeInterface*/ $date = null)
     {
         if (null === $date) {
@@ -5125,15 +3380,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Returns the number of seconds after the time specified in the response's Date
-     * header when the response should no longer be considered fresh.
-     *
-     * First, it checks for a s-maxage directive, then a max-age directive, and then it falls
-     * back on an expires header. It returns null when no maximum age can be established.
-     *
-     * @final
-     */
     public function getMaxAge()/*: ?int*/
     {
         if ($this->headers->hasCacheControlDirective('s-maxage')) {
@@ -5151,15 +3397,6 @@ class HttpResponse
         return null;
     }
 
-    /**
-     * Sets the number of seconds after which the response should no longer be considered fresh.
-     *
-     * This methods sets the Cache-Control max-age directive.
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setMaxAge(/*int*/ $value)
     {
         $this->headers->addCacheControlDirective('max-age', $value);
@@ -5167,15 +3404,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Sets the number of seconds after which the response should no longer be considered fresh by shared caches.
-     *
-     * This methods sets the Cache-Control s-maxage directive.
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setSharedMaxAge(/*int*/ $value)
     {
         $this->setPublic();
@@ -5184,16 +3412,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Returns the response's time-to-live in seconds.
-     *
-     * It returns null when no freshness information is present in the response.
-     *
-     * When the responses TTL is <= 0, the response may not be served from cache without first
-     * revalidating with the origin.
-     *
-     * @final
-     */
     public function getTtl()/*: ?int*/
     {
         $maxAge = $this->getMaxAge();
@@ -5201,15 +3419,6 @@ class HttpResponse
         return null !== $maxAge ? $maxAge - $this->getAge() : null;
     }
 
-    /**
-     * Sets the response's time-to-live for shared caches in seconds.
-     *
-     * This method adjusts the Cache-Control/s-maxage directive.
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setTtl(/*int*/ $seconds)
     {
         $this->setSharedMaxAge($this->getAge() + $seconds);
@@ -5217,15 +3426,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Sets the response's time-to-live for private/client caches in seconds.
-     *
-     * This method adjusts the Cache-Control/max-age directive.
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setClientTtl(/*int*/ $seconds)
     {
         $this->setMaxAge($this->getAge() + $seconds);
@@ -5233,27 +3433,11 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Returns the Last-Modified HTTP header as a DateTime instance.
-     *
-     * @throws \RuntimeException When the HTTP header is not parseable
-     *
-     * @final
-     */
     public function getLastModified()/*: ?\DateTimeInterface*/
     {
         return $this->headers->getDate('Last-Modified');
     }
 
-    /**
-     * Sets the Last-Modified HTTP header with a DateTime instance.
-     *
-     * Passing null as value will remove the header.
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setLastModified(/*\DateTimeInterface*/ $date = null)
     {
         if (null === $date) {
@@ -5272,26 +3456,11 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Returns the literal value of the ETag HTTP header.
-     *
-     * @final
-     */
     public function getEtag()/*: ?string*/
     {
         return $this->headers->get('ETag');
     }
 
-    /**
-     * Sets the ETag value.
-     *
-     * @param string|null $etag The ETag unique identifier or null to remove the header
-     * @param bool        $weak Whether you want a weak ETag or not
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setEtag(/*string*/ $etag = null, /*bool*/ $weak = false)
     {
         if (null === $etag) {
@@ -5307,17 +3476,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Sets the response's cache headers (validation and/or expiration).
-     *
-     * Available options are: etag, last_modified, max_age, s_maxage, private, public and immutable.
-     *
-     * @return $this
-     *
-     * @throws \InvalidArgumentException
-     *
-     * @final
-     */
     public function setCache(/*array*/ $options)
     {
         if ($diff = array_diff(array_keys($options), array('etag', 'last_modified', 'max_age', 's_maxage', 'private', 'public', 'immutable'))) {
@@ -5363,18 +3521,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Modifies the response so that it conforms to the rules defined for a 304 status code.
-     *
-     * This sets the status, removes the body, and discards any headers
-     * that MUST NOT be included in 304 responses.
-     *
-     * @return $this
-     *
-     * @see http://tools.ietf.org/html/rfc2616#section-10.3.5
-     *
-     * @final
-     */
     public function setNotModified()
     {
         $this->setStatusCode(304);
@@ -5388,21 +3534,11 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Returns true if the response includes a Vary header.
-     *
-     * @final
-     */
     public function hasVary()/*: bool*/
     {
         return null !== $this->headers->get('Vary');
     }
 
-    /**
-     * Returns an array of header names given in the Vary header.
-     *
-     * @final
-     */
     public function getVary()/*: array*/
     {
         if (!$vary = $this->headers->get('Vary', null, false)) {
@@ -5417,16 +3553,6 @@ class HttpResponse
         return $ret;
     }
 
-    /**
-     * Sets the Vary header.
-     *
-     * @param string|array $headers
-     * @param bool         $replace Whether to replace the actual value or not (true by default)
-     *
-     * @return $this
-     *
-     * @final
-     */
     public function setVary($headers, /*bool*/ $replace = true)
     {
         $this->headers->set('Vary', $headers, $replace);
@@ -5434,17 +3560,6 @@ class HttpResponse
         return $this;
     }
 
-    /**
-     * Determines if the HttpResponse validators (ETag, Last-Modified) match
-     * a conditional value specified in the Request.
-     *
-     * If the HttpResponse is not modified, it sets the status code to 304 and
-     * removes the actual content by calling the setNotModified() method.
-     *
-     * @return bool true if the HttpResponse validators match the Request, false otherwise
-     *
-     * @final
-     */
     public function isNotModified(/*Request*/ $request)/*: bool*/
     {
         if (!$request->isMethodCacheable()) {
@@ -5470,125 +3585,61 @@ class HttpResponse
         return $notModified;
     }
 
-    /**
-     * Is response invalid?
-     *
-     * @see http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
-     *
-     * @final
-     */
     public function isInvalid()/*: bool*/
     {
         return $this->statusCode < 100 || $this->statusCode >= 600;
     }
 
-    /**
-     * Is response informative?
-     *
-     * @final
-     */
     public function isInformational()/*: bool*/
     {
         return $this->statusCode >= 100 && $this->statusCode < 200;
     }
 
-    /**
-     * Is response successful?
-     *
-     * @final
-     */
     public function isSuccessful()/*: bool*/
     {
         return $this->statusCode >= 200 && $this->statusCode < 300;
     }
 
-    /**
-     * Is the response a redirect?
-     *
-     * @final
-     */
     public function isRedirection()/*: bool*/
     {
         return $this->statusCode >= 300 && $this->statusCode < 400;
     }
 
-    /**
-     * Is there a client error?
-     *
-     * @final
-     */
     public function isClientError()/*: bool*/
     {
         return $this->statusCode >= 400 && $this->statusCode < 500;
     }
 
-    /**
-     * Was there a server side error?
-     *
-     * @final
-     */
     public function isServerError()/*: bool*/
     {
         return $this->statusCode >= 500 && $this->statusCode < 600;
     }
 
-    /**
-     * Is the response OK?
-     *
-     * @final
-     */
     public function isOk()/*: bool*/
     {
         return 200 == $this->statusCode;
     }
 
-    /**
-     * Is the response forbidden?
-     *
-     * @final
-     */
     public function isForbidden()/*: bool*/
     {
         return 403 == $this->statusCode;
     }
 
-    /**
-     * Is the response a not found error?
-     *
-     * @final
-     */
     public function isNotFound()/*: bool*/
     {
         return 404 == $this->statusCode;
     }
 
-    /**
-     * Is the response a redirect of some form?
-     *
-     * @final
-     */
     public function isRedirect(/*string*/ $location = null)/*: bool*/
     {
         return in_array($this->statusCode, array(201, 301, 302, 303, 307, 308)) && (null === $location ?: $location == $this->headers->get('Location'));
     }
 
-    /**
-     * Is the response empty?
-     *
-     * @final
-     */
     public function isEmpty()/*: bool*/
     {
         return in_array($this->statusCode, array(204, 304));
     }
 
-    /**
-     * Cleans or flushes output buffers up to target level.
-     *
-     * Resulting level can be greater than target level if a non-removable buffer has been encountered.
-     *
-     * @final
-     */
     public static function closeOutputBuffers(/*int*/ $targetLevel, /*bool*/ $flush)
     {
         $status = ob_get_status(true);
@@ -5604,17 +3655,10 @@ class HttpResponse
         }
     }
 
-    /**
-     * Checks if we need to remove Cache-Control for SSL encrypted downloads when using IE < 9.
-     *
-     * @see http://support.microsoft.com/kb/323308
-     *
-     * @final
-     */
     protected function ensureIEOverSSLCompatibility(/*Request*/ $request)
     {
         $disposition = $this->headers->get('Content-Disposition');
-		if (is_string($disposition) && false !== stripos($disposition, 'attachment') && 1 == preg_match('/MSIE (.*?);/i', $request->server->get('HTTP_USER_AGENT'), $match) && true === $request->isSecure()) {
+        if (is_string($disposition) && false !== stripos($disposition, 'attachment') && 1 == preg_match('/MSIE (.*?);/i', $request->server->get('HTTP_USER_AGENT'), $match) && true === $request->isSecure()) {
             if ((int) preg_replace('/(MSIE )(.*?);/', '$2', $match[0]) < 9) {
                 $this->headers->remove('Cache-Control');
             }
@@ -5622,8 +3666,7 @@ class HttpResponse
     }
 }
 
-
-if ( !interface_exists('SessionHandlerInterface', false) ) {
+if (!interface_exists('SessionHandlerInterface', false)) {
 // since PHP 5.4+
 interface SessionHandlerInterface
 {
@@ -5725,13 +3768,13 @@ class HttpSession implements SessionHandlerInterface
         return (!empty($_SERVER['HTTPS']) && 'off' !== strtolower($_SERVER['HTTPS'])) || (isset($_SERVER['SERVER_PORT']) && ('443' == $_SERVER['SERVER_PORT'])) ? true : false;
     }
 
-    protected function setHandler( $handler=null )
+    protected function setHandler($handler = null)
     {
-        if ( empty($handler) ) {
+        if (empty($handler)) {
             $handler = $this;
         }
 
-        if ( !($handler instanceof SessionHandlerInterface) ) {
+        if (!($handler instanceof SessionHandlerInterface)) {
             // notify user that session handler given is invalid..
             throw new \RuntimeException('HttpSession Handler "'.get_class($handler).'" does not implement SessionHandlerInterface!');
         }
@@ -5766,17 +3809,17 @@ class HttpSession implements SessionHandlerInterface
         }
     }
 
-    public function get( $key, $default=null )
+    public function get($key, $default = null)
     {
         return array_key_exists($key, $_SESSION) ? $_SESSION[$key] : $default;
     }
 
-    public function set( $key, $val )
+    public function set($key, $val)
     {
         $_SESSION[$key] = $val;
     }
 
-    public function has( $key )
+    public function has($key)
     {
         return array_key_exists($key, $_SESSION);
     }
@@ -5787,7 +3830,7 @@ class HttpSession implements SessionHandlerInterface
             return true;
         }
 
-        if ( $this->_isCLI ) {
+        if ($this->_isCLI) {
             $_SESSION = array();
             $this->id('cli');
 
@@ -5891,14 +3934,14 @@ class HttpSession implements SessionHandlerInterface
     // SessionHandlerInterface methods here ..
     // ..
     #[\ReturnTypeWillChange]
-	public function open($savePath, $name)
+    public function open($savePath, $name)
     {
         $this->sessionName = $name;
 
         if (!headers_sent() && !ini_get('session.cache_limiter') && '0' !== ini_get('session.cache_limiter')) {
             header(sprintf('Cache-Control: max-age=%d, private, must-revalidate', 60 * (int) ini_get('session.cache_expire')));
         }
-        if ( 'custom' == $this->_storage )
+        if ('custom' == $this->_storage)
             $ret = (bool)$this->_handler->open($savePath, $name);
         else
             $ret = true;
@@ -5906,9 +3949,9 @@ class HttpSession implements SessionHandlerInterface
     }
 
     #[\ReturnTypeWillChange]
-	public function close()
+    public function close()
     {
-        if ( 'custom' == $this->_storage )
+        if ('custom' == $this->_storage)
             $ret = (bool)$this->_handler->close();
         else
             $ret = true;
@@ -5916,9 +3959,9 @@ class HttpSession implements SessionHandlerInterface
     }
 
     #[\ReturnTypeWillChange]
-	public function read($id)
+    public function read($id)
     {
-        if ( 'custom' == $this->_storage ) {
+        if ('custom' == $this->_storage) {
             $ret = $this->_handler->read($id);
         }
 
@@ -5930,21 +3973,21 @@ class HttpSession implements SessionHandlerInterface
     }
 
     #[\ReturnTypeWillChange]
-	public function write($id, $data)
+    public function write($id, $data)
     {
         if (!$id) {
             return false;
         }
 
         $ret = false;
-        if ( 'custom' == $this->_storage ) {
+        if ('custom' == $this->_storage) {
             $ret = (bool)$this->_handler->write($id, $data, $this->_lifetime);
         }
         return $ret;
     }
 
     #[\ReturnTypeWillChange]
-	public function destroy($id)
+    public function destroy($id)
     {
         if (!headers_sent() && ini_get('session.use_cookies')) {
             if (!$this->sessionName) {
@@ -5978,16 +4021,16 @@ class HttpSession implements SessionHandlerInterface
             }
         }
 
-        if ( 'custom' == $this->_storage ) {
+        if ('custom' == $this->_storage) {
             $ret = (bool)$this->_handler->destroy($id);
         }
         return true;
     }
 
     #[\ReturnTypeWillChange]
-	public function gc($maxlifetime)
+    public function gc($maxlifetime)
     {
-        if ( 'custom' == $this->_storage ) {
+        if ('custom' == $this->_storage) {
             $ret = (bool)$this->_handler->gc($maxlifetime);
         }
         return true;

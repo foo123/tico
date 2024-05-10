@@ -27,9 +27,9 @@ tico('http://localhost:8000', ROOT)
             ->option('cache_dir', tico()->path('/cache/data'))
         ;
     }) // container supports lazy factory-like functions
-    ->hook('before_serve_cached', function() {
+    ->hook('tico_before_serve_cached', function() {
         // a custom hook
-        tico()->variable('before_serve_cached__content', tico()->variable('before_serve_cached__content')."\n\n<!--cached version-->");
+        tico()->variable('tico_before_serve_cached__content', tico()->variable('tico_before_serve_cached__content')."\n\n<!--cached version-->");
     })
 ;
 

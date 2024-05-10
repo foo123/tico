@@ -8,7 +8,7 @@ Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.20.0**)
 1. [`Importer`](https://github.com/foo123/Importer) class &amp; asset dependency loader
 2. [`Dromeo`](https://github.com/foo123/Dromeo) versatile pattern router
 3. [`InTpl`](https://github.com/foo123/InTpl) simple php templates w/ inheritance
-4. `HttpFoundation` adapted from **Symfony's HttpFoundation component**
+4. `HttpFoundation` adapted from [Symfony's HttpFoundation component](https://github.com/symfony/http-foundation)
 
 
 **demo** (see `/demo/index.php`)
@@ -46,9 +46,9 @@ tico('http://localhost:8000', ROOT)
             ->option('cache_dir', tico()->path('/cache/data'))
         ;
     }) // container supports lazy factory-like functions
-    ->hook('before_serve_cached', function() {
+    ->hook('tico_before_serve_cached', function() {
         // a custom hook
-        tico()->variable('before_serve_cached__content', tico()->variable('before_serve_cached__content')."\n\n<!--cached version-->");
+        tico()->variable('tico_before_serve_cached__content', tico()->variable('tico_before_serve_cached__content')."\n\n<!--cached version-->");
     })
 ;
 

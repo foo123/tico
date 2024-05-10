@@ -239,7 +239,17 @@ class Tico
         $args = func_get_args();
         if (1 < count($args))
         {
-            $this->Variable[$key] = $args[1];
+            $val = $args[1];
+            /*if (is_null($val))
+            {
+                // unset
+                if (isset($this->Variable[$key]))
+                    unset($this->Variable[$key]);
+            }
+            else
+            {*/
+                $this->Variable[$key] = $val;
+            /*}*/
             return $this;
         }
         return isset($this->Variable[$key]) ? $this->Variable[$key] : null;
@@ -279,7 +289,7 @@ class Tico
         if (1 < count($args))
         {
             $handler = $args[1];
-            $priority = !empty($args[2]) ? $args[2] : 0;
+            $priority = isset($args[2]) ? $args[2] : 0;
             if (is_callable($handler))
             {
                 if (false === $priority)
@@ -298,7 +308,7 @@ class Tico
                 {
                     // insert hook
                     if (!isset($this->Hooks[$hook])) $this->Hooks[$hook] = array();
-                    $this->Hooks[$hook][] = array($handler, (int)$priority, count($this->Hooks[$hook]));
+                    $this->Hooks[$hook][] = array($handler, ((int)$priority) || 0, count($this->Hooks[$hook]));
                 }
             }
         }
@@ -358,13 +368,16 @@ class Tico
         else
         {
             if ($this->Request) return $this->Request;
-            if ($req = $this->variable('tico_request'))
+            if (!class_exists('HttpRequest', false)) include(TICO . '/HttpFoundation.php');
+            $this->variable('tico_request', null);
+            $this->hook('tico_request');
+            if (($req = $this->variable('tico_request')) && ($req instanceof HttpRequest))
             {
                 $this->Request = $req;
+                $this->variable('tico_request', null);
             }
             else
             {
-                if (!class_exists('HttpRequest', false)) include(TICO . '/HttpFoundation.php');
                 $this->Request = HttpRequest::createFromGlobals();
             }
             return $this->Request;
@@ -384,13 +397,16 @@ class Tico
         else
         {
             if ($this->Response) return $this->Response;
-            if ($res = $this->variable('tico_response'))
+            if (!class_exists('HttpResponse', false)) include(TICO . '/HttpFoundation.php');
+            $this->variable('tico_response', null);
+            $this->hook('tico_response');
+            if (($res = $this->variable('tico_response')) && ($res instanceof HttpResponse))
             {
                 $this->Response = $res;
+                $this->variable('tico_response', null);
             }
             else
             {
-                if (!class_exists('HttpResponse', false)) include(TICO . '/HttpFoundation.php');
                 $this->Response = new HttpResponse();
             }
             return $this->Response;
@@ -548,17 +564,19 @@ class Tico
             }
             if (!empty($content) && !empty($content['status']) && isset($content['content']))
             {
-                $this->variable('before_serve_cached__content_type', $content['content-type']);
-                $this->variable('before_serve_cached__content', $content['content']);
-                $this->hook('before_serve_cached');
-                $content['content-type'] = $this->variable('before_serve_cached__content_type');
-                $content['content'] = $this->variable('before_serve_cached__content');
+                $this->variable('tico_before_serve_cached__content_type', $content['content-type']);
+                $this->variable('tico_before_serve_cached__content', $content['content']);
+                $this->hook('tico_before_serve_cached');
+                $content['content-type'] = $this->variable('tico_before_serve_cached__content_type');
+                $content['content'] = $this->variable('tico_before_serve_cached__content');
+                $this->variable('tico_before_serve_cached__content_type', null);
+                $this->variable('tico_before_serve_cached__content', null);
                 header('Content-Type: '.$content['content-type'], false, $content['status']);
                 header('Last-Modified: '.$this->_mkDateTime($content['time']), false, $content['status']);
                 header('Date: '.$this->_mkDateTime(time()), false, $content['status']);
                 header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
                 echo $content['content'];
-                $this->hook('after_serve_cached');
+                $this->hook('tico_after_serve_cached');
                 return true;
             }
         }
@@ -937,13 +955,14 @@ class Tico
 
         $this->_fixServerVars();
 
-        $this->hook('before_serve');
+        $this->hook('tico_before_serve');
         $this->request();
 
         $passed = true;
 
         if (!empty($this->Middleware->before))
         {
+            $this->hook('tico_before_middleware_before');
             $passed = false;
             $next1 = function() use (&$next1, &$passed) {
                 static $i = -1;
@@ -952,10 +971,12 @@ class Tico
                 else call_user_func($this->Middleware->before[$i], $next1);
             };
             call_user_func($next1);
+            $this->hook('tico_after_middleware_before');
         }
 
         if ($passed)
         {
+            $this->hook('tico_before_route');
             $caseInsensitiveUris = $this->option('case_insensitive_uris');
             $requestPortOrig = $this->requestPort(true);
             $requestPort = ':' . (null == $requestPortOrig ? '' : (string)$requestPortOrig);
@@ -985,16 +1006,19 @@ class Tico
             {
                 $this->router()->route($requestPath, $requestMethod, true, $requestPathOrig, $originalParamsKey);
             }
+            $this->hook('tico_after_route');
         }
 
         if (!empty($this->Middleware->after))
         {
+            $this->hook('tico_before_middleware_after');
             $next2 = function() use (&$next2) {
                 static $i = -1;
                 ++$i;
                 if ($i < count($this->Middleware->after)) call_user_func($this->Middleware->after[$i], $next2);
             };
             call_user_func($next2);
+            $this->hook('tico_after_middleware_after');
         }
 
         $this->response()->prepare($this->request());
@@ -1002,16 +1026,17 @@ class Tico
         // if cache enabled for this page, cache it
         if ($this->variable('cache') && (is_object($cache = $this->get('cache')) && method_exists($cache, 'set') ) && ($cached = $this->cached()))
         {
-            $this->variable('before_cache__content', $cached);
-            $this->hook('before_cache');
-            $cached = $this->variable('before_cache__content');
+            $this->variable('tico_before_cache__content', $cached);
+            $this->hook('tico_before_cache');
+            $cached = $this->variable('tico_before_cache__content');
+            $this->variable('tico_before_cache__content', null);
             $cache->set($this->_k, $cached);
-            $this->hook('after_cache');
+            $this->hook('tico_after_cache');
         }
 
-        $this->hook('before_send');
+        $this->hook('tico_before_send');
         $this->response()->send();
-        $this->hook('after_serve');
+        $this->hook('tico_after_serve');
         return true;
     }
 }
