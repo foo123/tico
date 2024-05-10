@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.15.0
+* @version 1.20.0
 * https://github.com/foo123/tico
 *
 */
@@ -39,7 +39,7 @@ class TicoValue
 
 class Tico
 {
-    const VERSION = '1.15.0';
+    const VERSION = '1.20.0';
 
     public $Loader = null;
     public $Router = null;
@@ -54,6 +54,7 @@ class Tico
     public $Variable = array();
     public $Middleware = null;
     public $SubdomainsPorts = array();
+    public $Hooks = array();
 
     private $_onSubdomainPort = null;
     private $_k = null;
@@ -271,6 +272,51 @@ class Tico
         return $this;
     }
 
+    public function hook($hook/*, $handler = null, $priority = 0*/)
+    {
+        $args = func_get_args();
+        $hook = (string)$hook;
+        if (1 < count($args))
+        {
+            $handler = $args[1];
+            $priority = !empty($args[2]) ? $args[2] : 0;
+            if (is_callable($handler))
+            {
+                if (false === $priority)
+                {
+                    // remove hook
+                    if (!empty($this->Hooks[$hook]))
+                    {
+                        $hooks =& $this->Hooks[$hook];
+                        for ($i=count($hooks)-1; $i>=0; --$i)
+                        {
+                            if ($handler === $hooks[$i][0]) array_splice($hooks, $i, 1);
+                        }
+                    }
+                }
+                else
+                {
+                    // insert hook
+                    if (!isset($this->Hooks[$hook])) $this->Hooks[$hook] = array();
+                    $this->Hooks[$hook][] = array($handler, (int)$priority, count($this->Hooks[$hook]));
+                }
+            }
+        }
+        else
+        {
+            // run hook
+            if (!empty($this->Hooks[$hook]))
+            {
+                $hooks = $this->Hooks[$hook]; // array copy
+                // sort according to increasing priority
+                usort($hooks, function($a, $b) {return $a[1] == $b[1] ? ($a[2]-$b[2]) : ($a[1]-$b[1]);});
+                // handlers can use tico()->variable() to pass values between hooks (eg like filters)
+                foreach ($hooks as $handler) @call_user_func($handler[0]);
+            }
+        }
+        return $this;
+    }
+
     public function loader()
     {
         if ($this->Loader) return $this->Loader;
@@ -312,8 +358,15 @@ class Tico
         else
         {
             if ($this->Request) return $this->Request;
-            if (!class_exists('HttpRequest', false)) include(TICO . '/HttpFoundation.php');
-            $this->Request = HttpRequest::createFromGlobals();
+            if ($req = $this->variable('tico_request'))
+            {
+                $this->Request = $req;
+            }
+            else
+            {
+                if (!class_exists('HttpRequest', false)) include(TICO . '/HttpFoundation.php');
+                $this->Request = HttpRequest::createFromGlobals();
+            }
             return $this->Request;
         }
     }
@@ -331,8 +384,15 @@ class Tico
         else
         {
             if ($this->Response) return $this->Response;
-            if (!class_exists('HttpResponse', false)) include(TICO . '/HttpFoundation.php');
-            $this->Response = new HttpResponse();
+            if ($res = $this->variable('tico_response'))
+            {
+                $this->Response = $res;
+            }
+            else
+            {
+                if (!class_exists('HttpResponse', false)) include(TICO . '/HttpFoundation.php');
+                $this->Response = new HttpResponse();
+            }
             return $this->Response;
         }
     }
@@ -354,6 +414,12 @@ class Tico
     public function output($data, $type = 'html', $headers = array())
     {
         $type = empty($type) ? 'html' : $type;
+        $handler = $this->option('tico_output');
+        if (is_callable($handler))
+        {
+            @call_user_func($handler, $data, $type, $headers);
+            return $this;
+        }
         switch($type)
         {
             case 'html':
@@ -482,11 +548,17 @@ class Tico
             }
             if (!empty($content) && !empty($content['status']) && isset($content['content']))
             {
+                $this->variable('before_serve_cached__content_type', $content['content-type']);
+                $this->variable('before_serve_cached__content', $content['content']);
+                $this->hook('before_serve_cached');
+                $content['content-type'] = $this->variable('before_serve_cached__content_type');
+                $content['content'] = $this->variable('before_serve_cached__content');
                 header('Content-Type: '.$content['content-type'], false, $content['status']);
                 header('Last-Modified: '.$this->_mkDateTime($content['time']), false, $content['status']);
                 header('Date: '.$this->_mkDateTime(time()), false, $content['status']);
                 header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
                 echo $content['content'];
+                $this->hook('after_serve_cached');
                 return true;
             }
         }
@@ -861,10 +933,11 @@ class Tico
 
     public function serve()
     {
-        if ($this->isCli()) return;
+        if ($this->isCli()) return false;
 
         $this->_fixServerVars();
 
+        $this->hook('before_serve');
         $this->request();
 
         $passed = true;
@@ -927,9 +1000,19 @@ class Tico
         $this->response()->prepare($this->request());
 
         // if cache enabled for this page, cache it
-        if ($this->variable('cache') && (is_object($cache = $this->get('cache')) && method_exists($cache, 'set') ) && ($cached = $this->cached())) $cache->set($this->_k, $cached);
+        if ($this->variable('cache') && (is_object($cache = $this->get('cache')) && method_exists($cache, 'set') ) && ($cached = $this->cached()))
+        {
+            $this->variable('before_cache__content', $cached);
+            $this->hook('before_cache');
+            $cached = $this->variable('before_cache__content');
+            $cache->set($this->_k, $cached);
+            $this->hook('after_cache');
+        }
 
+        $this->hook('before_send');
         $this->response()->send();
+        $this->hook('after_serve');
+        return true;
     }
 }
 function tico($baseUrl = '', $basePath = '')

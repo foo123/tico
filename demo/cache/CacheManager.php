@@ -31,6 +31,7 @@ class CacheManager
         $this->option('set_key', null);
         $this->option('del_key', null);
         $this->option('cache_dur_sec', 1 * 24 * 60 * 60/*1 day in seconds*/);
+        $this->option('delete_expired', true);
         $this->option('cache_dir', '');
         $this->option('separator', '!');
         $this->option('salt', '');
@@ -77,6 +78,10 @@ class CacheManager
                     {
                         $content = substr($data, $sep+strlen($separator));
                         return $content;
+                    }
+                    elseif ($this->option('delete_expired'))
+                    {
+                        @unlink($file);
                     }
                 }
             }

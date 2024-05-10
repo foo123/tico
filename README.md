@@ -1,6 +1,6 @@
 # tico
 
-Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.15.0**)
+Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.20.0**)
 
 
 **Uses:**
@@ -42,218 +42,219 @@ tico('http://localhost:8000', ROOT)
         // any custom caching solution can be used that has get/set methods, here a simple CacheManager
         include tico()->path('/cache/CacheManager.php');
         return (new CacheManager())
-            ->option('cache_dur_sec', 10 * 60 * 60/*10 minutes*/)
+            ->option('cache_dur_sec', 10 * 60/*10 minutes*/)
             ->option('cache_dir', tico()->path('/cache/data'))
         ;
     }) // container supports lazy factory-like functions
+    ->hook('before_serve_cached', function() {
+        // a custom hook
+        tico()->variable('before_serve_cached__content', tico()->variable('before_serve_cached__content')."\n\n<!--cached version-->");
+    })
 ;
 
 
-// if cache served, exit fast and early
-if (tico()->serveCache())
-{
-    // done
-}
-else
-{
-// full framework
-tico()
-    // middleware functionality
-    ->middleware(function($next) {
+// if cache enabled and served, exit fast and early
+(tico()->serveCache())
 
-        // eg check if user is authenticated,
-        // for example check user cookie and set user var appropriately
-        tico()->set('user', tico()->request()->cookies->get('user', 'guest'));
-        // start session example (eg native php session)
-        $session = new HttpSession(/*array(..)*/);
-        tico()->request()->setSession($session);
-        $session->start();
-        if (!$session->has('count')) $session->set('count', 0);
-        $next();
+or
 
-    })
-    ->middleware(function($next) {
+// else serve request normally, using full framework
+(tico()
+// middleware functionality
+->middleware(function($next) {
 
-        // if this condition is met, abort current request, eg user is not authenticated
-        if (('guest'==tico()->get('user')) && ('/hello/foo'==tico()->requestPath()))
-            //tico()->redirect(tico()->uri('/hello/bar'), 302);
-            tico()->output(
-                array('title' => 'Hello!', 'msg' => 'guest'),
-                'hello.tpl.php'
-            );
-        // else pass along
-        else
-            $next();
+    // eg check if user is authenticated,
+    // for example check user cookie and set user var appropriately
+    tico()->set('user', tico()->request()->cookies->get('user', 'guest'));
+    // start session example (eg native php session)
+    $session = new HttpSession(/*array(..)*/);
+    tico()->request()->setSession($session);
+    $session->start();
+    if (!$session->has('count')) $session->set('count', 0);
+    $next();
 
-    })
+})
+->middleware(function($next) {
 
-
-    // can handle other ports from same script, as long as handling is directed to this file
-    // on :4040 port, '*' means on any port
-    ->onPort(4040, function() {
-
-        tico()
-            ->on('*', '/', function() {
-
-                tico()->output(
-                    array('title' => 'Demo Port Index'),
-                    '4040/index.tpl.php'
-                );
-
-            })
-            ->on(false, function() {
-
-                tico()->output(
-                    array(),
-                    '4040/404.tpl.php',
-                    array('StatusCode' => 404)
-                );
-
-            })
-        ;
-
-    })
-
-    // can handle subdomains from same script, as long as subdomain handling is directed to this file
-    // on "foo." subdomain, '*' means on any subdomain
-    ->onSubdomain('foo', function() {
-
-        tico()
-            ->on('*', '/', function() {
-
-                tico()->output(
-                    array('title' => 'Demo Subdomain Index'),
-                    'foo/index.tpl.php'
-                );
-
-            })
-            ->on(false, function() {
-
-                tico()->output(
-                    array(),
-                    'foo/404.tpl.php',
-                    array('StatusCode' => 404)
-                );
-
-            })
-        ;
-
-    })
-
-    // on main domain / port
-    ->on('*', '/', function() {
-
+    // if this condition is met, abort current request, eg user is not authenticated
+    if (('guest'==tico()->get('user')) && ('/hello/foo'==tico()->requestPath()))
+        //tico()->redirect(tico()->uri('/hello/bar'), 302);
         tico()->output(
-            array('title' => 'Demo Index'),
-            'index.tpl.php'
-        );
-
-    })
-    ->on(['get', 'post'], '/hello/{:msg}', function($params) {
-
-        $session = tico()->request()->getSession();
-        $session->set('count', $session->get('count')+1);
-        tico()->output(
-            array(
-                'title' => 'Hello!',
-                'msg' => $params['msg'],
-                'count'=> $session->get('count')
-            ),
+            array('title' => 'Hello!', 'msg' => 'guest'),
             'hello.tpl.php'
         );
+    // else pass along
+    else
+        $next();
 
-    })
-    // group routes under common prefix
-    ->onGroup('/foo', function() {
+})
 
-        tico()
-            // /foo/moo
-            ->on('*', '/moo', function() {
-                tico()->output(
-                    array(
-                        'title' => 'Group Route',
-                        'msg' => 'Group Route /foo/moo',
-                        'count'=> 0
-                    ),
-                    'hello.tpl.php'
-                );
-            })
-            // /foo/koo
-            ->onGroup('/koo', function() {
-                tico()
-                    // /foo/koo
-                    ->on('*', '/', function() {
-                        tico()->output(
-                            array(
-                                'title' => 'Group Route',
-                                'msg' => 'Group Route /foo/koo',
-                                'count'=> 0
-                            ),
-                            'hello.tpl.php'
-                        );
-                    })
-                    // /foo/koo/soo
-                    ->on('*', '/soo', function() {
-                        tico()->output(
-                            array(
-                                'title' => 'Group Route',
-                                'msg' => 'Group Route /foo/koo/soo',
-                                'count'=> 0
-                            ),
-                            'hello.tpl.php'
-                        );
-                    })
-                ;
-            })
-        ;
 
-    })
-    ->on('*', '/json/api', function() {
+// can handle other ports from same script, as long as handling is directed to this file
+// on :4040 port, '*' means on any port
+->onPort(4040, function() {
 
-        tico()->output(array(
-            'param1' => '123',
-            'param2' => '456',
-            'param3' => '789'
-        ), 'json');
+    tico()
+        ->on('*', '/', function() {
 
-    })
-    ->on('*', '/download', function() {
+            tico()->output(
+                array('title' => 'Demo Port Index'),
+                '4040/index.tpl.php'
+            );
 
-        tico()->output(
-            tico()->path('/file.txt'),
-            'file'
-        );
+        })
+        ->on(false, function() {
 
-    })
-    ->on('*', '/redirect', function() {
+            tico()->output(
+                array(),
+                '4040/404.tpl.php',
+                array('StatusCode' => 404)
+            );
 
-        tico()->redirect(tico()->uri('/'), 302);
+        })
+    ;
 
-    })
-    ->on(false, function() {
+})
 
-        tico()->output(
-            array(),
-            '404.tpl.php',
-            array('StatusCode' => 404)
-        );
+// can handle subdomains from same script, as long as subdomain handling is directed to this file
+// on "foo." subdomain, '*' means on any subdomain
+->onSubdomain('foo', function() {
 
-    })
+    tico()
+        ->on('*', '/', function() {
 
-    // middlewares are same for main domain and all subdomains and all ports
-    ->middleware(function($next) {
+            tico()->output(
+                array('title' => 'Demo Subdomain Index'),
+                'foo/index.tpl.php'
+            );
 
-        // post process, eg create cache files from response
-        if ((200 == tico()->response()->getStatusCode()) && 'text/html'==tico()->response()->headers->get('Content-Type') && !tico()->response()->getFile() && !tico()->response()->getCallback())
-        {
-            tico()->response()->setContent(tico()->response()->getContent().'<!-- post processed -->');
-        }
+        })
+        ->on(false, function() {
 
-    }, 'after')
+            tico()->output(
+                array(),
+                'foo/404.tpl.php',
+                array('StatusCode' => 404)
+            );
 
-    ->serve()
+        })
+    ;
+
+})
+
+// on main domain / port
+->on('*', '/', function() {
+
+    tico()->output(
+        array('title' => 'Demo Index'),
+        'index.tpl.php'
+    );
+
+})
+->on(['get', 'post'], '/hello/{:msg}', function($params) {
+
+    $session = tico()->request()->getSession();
+    $session->set('count', $session->get('count')+1);
+    tico()->output(
+        array(
+            'title' => 'Hello!',
+            'msg' => $params['msg'],
+            'count'=> $session->get('count')
+        ),
+        'hello.tpl.php'
+    );
+
+})
+// group routes under common prefix
+->onGroup('/foo', function() {
+
+    tico()
+        // /foo/moo
+        ->on('*', '/moo', function() {
+            tico()->output(
+                array(
+                    'title' => 'Group Route',
+                    'msg' => 'Group Route /foo/moo',
+                    'count'=> 0
+                ),
+                'hello.tpl.php'
+            );
+        })
+        // /foo/koo
+        ->onGroup('/koo', function() {
+            tico()
+                // /foo/koo
+                ->on('*', '/', function() {
+                    tico()->output(
+                        array(
+                            'title' => 'Group Route',
+                            'msg' => 'Group Route /foo/koo',
+                            'count'=> 0
+                        ),
+                        'hello.tpl.php'
+                    );
+                })
+                // /foo/koo/soo
+                ->on('*', '/soo', function() {
+                    tico()->output(
+                        array(
+                            'title' => 'Group Route',
+                            'msg' => 'Group Route /foo/koo/soo',
+                            'count'=> 0
+                        ),
+                        'hello.tpl.php'
+                    );
+                })
+            ;
+        })
+    ;
+
+})
+->on('*', '/json/api', function() {
+
+    tico()->output(array(
+        'param1' => '123',
+        'param2' => '456',
+        'param3' => '789'
+    ), 'json');
+
+})
+->on('*', '/download', function() {
+
+    tico()->output(
+        tico()->path('/file.txt'),
+        'file'
+    );
+
+})
+->on('*', '/redirect', function() {
+
+    tico()->redirect(tico()->uri('/'), 302);
+
+})
+->on(false, function() {
+
+    tico()->output(
+        array(),
+        '404.tpl.php',
+        array('StatusCode' => 404)
+    );
+
+})
+
+// middlewares are same for main domain and all subdomains and all ports
+->middleware(function($next) {
+
+    // post process, eg create cache files from response
+    if ((200 == tico()->response()->getStatusCode()) && 'text/html'==tico()->response()->headers->get('Content-Type') && !tico()->response()->getFile() && !tico()->response()->getCallback())
+    {
+        tico()->response()->setContent(tico()->response()->getContent().'<!-- post processed -->');
+    }
+
+}, 'after')
+
+->serve())
 ;
-}
 ```
 
 **see also:**
