@@ -52,9 +52,9 @@ class Tico
     public $Option = array();
     public $Data = array();
     public $Variable = array();
+    public $Hooks = array();
     public $Middleware = null;
     public $SubdomainsPorts = array();
-    public $Hooks = array();
 
     private $_onSubdomainPort = null;
     private $_k = null;
@@ -234,6 +234,17 @@ class Tico
         return $val;
     }
 
+    public function option($key)
+    {
+        $args = func_get_args();
+        if (1 < count($args))
+        {
+            $this->Option[$key] = $args[1];
+            return $this;
+        }
+        return isset($this->Option[$key]) ? $this->Option[$key] : null;
+    }
+
     public function variable($key)
     {
         $args = func_get_args();
@@ -253,17 +264,6 @@ class Tico
             return $this;
         }
         return isset($this->Variable[$key]) ? $this->Variable[$key] : null;
-    }
-
-    public function option($key)
-    {
-        $args = func_get_args();
-        if (1 < count($args))
-        {
-            $this->Option[$key] = $args[1];
-            return $this;
-        }
-        return isset($this->Option[$key]) ? $this->Option[$key] : null;
     }
 
     public function get($key)
@@ -451,9 +451,23 @@ class Tico
                     $this->response()->headers->set('Content-Type', 'text/plain');
                 }
                 if (is_callable($data))
-                    $this->response()->setCallback($data);
+                {
+                    $this->variable('tico_set_callback__type', $type);
+                    $this->variable('tico_set_callback__callback', $data);
+                    $this->hook('tico_set_callback');
+                    $this->response()->setCallback($this->variable('tico_set_callback__callback'));
+                    $this->variable('tico_set_callback__callback', null);
+                    $this->variable('tico_set_callback__type', null);
+                }
                 else
-                    $this->response()->setContent((string)$data);
+                {
+                    $this->variable('tico_set_content__type', $type);
+                    $this->variable('tico_set_content__content', (string)$data);
+                    $this->hook('tico_set_content');
+                    $this->response()->setContent($this->variable('tico_set_content__content'));
+                    $this->variable('tico_set_content__content', null);
+                    $this->variable('tico_set_content__type', null);
+                }
                 break;
 
             case 'json':
@@ -462,9 +476,23 @@ class Tico
                     $this->response()->headers->set('Content-Type', 'application/json');
                 }
                 if (is_callable($data))
-                    $this->response()->setCallback($data);
+                {
+                    $this->variable('tico_set_callback__type', $type);
+                    $this->variable('tico_set_callback__callback', $data);
+                    $this->hook('tico_set_callback');
+                    $this->response()->setCallback($this->variable('tico_set_callback__callback'));
+                    $this->variable('tico_set_callback__callback', null);
+                    $this->variable('tico_set_callback__type', null);
+                }
                 else
-                    $this->response()->setContent(json_encode($data));
+                {
+                    $this->variable('tico_set_content__type', $type);
+                    $this->variable('tico_set_content__content', json_encode($data));
+                    $this->hook('tico_set_content');
+                    $this->response()->setContent($this->variable('tico_set_content__content'));
+                    $this->variable('tico_set_content__content', null);
+                    $this->variable('tico_set_content__type', null);
+                }
                 break;
 
             case 'file':
@@ -476,12 +504,21 @@ class Tico
                     $this->response()->headers->set('Content-Type', $file_type);
                 }
                 //$this->response->headers->set('Content-Length', filesize($file));
-                $this->response()->setFile($file);
+                $this->variable('tico_set_file__file', $file);
                 if ($headers && isset($headers['deleteFileAfterSend']))
                 {
-                    $this->response()->deleteFileAfterSend($headers['deleteFileAfterSend']);
+                    $this->variable('tico_set_file__deleteFileAfterSend', $headers['deleteFileAfterSend']);
                     unset($headers['deleteFileAfterSend']);
                 }
+                else
+                {
+                    $this->variable('tico_set_file__deleteFileAfterSend', false);
+                }
+                $this->hook('tico_set_file');
+                $this->response()->setFile($this->variable('tico_set_file__file'));
+                if ($this->variable('tico_set_file__deleteFileAfterSend')) $this->response()->deleteFileAfterSend(true);
+                $this->variable('tico_set_file__file', null);
+                $this->variable('tico_set_file__deleteFileAfterSend', null);
                 $this->variable('cache', false); // files not cached
                 break;
 
@@ -491,9 +528,23 @@ class Tico
                     $this->response()->headers->set('Content-Type', 'text/html');
                 }
                 if (is_callable($data))
-                    $this->response()->setCallback($data);
+                {
+                    $this->variable('tico_set_callback__type', $type);
+                    $this->variable('tico_set_callback__callback', $data);
+                    $this->hook('tico_set_callback');
+                    $this->response()->setCallback($this->variable('tico_set_callback__callback'));
+                    $this->variable('tico_set_callback__callback', null);
+                    $this->variable('tico_set_callback__type', null);
+                }
                 else
-                    $this->response()->setContent($this->tpl($type, $data));
+                {
+                    $this->variable('tico_set_content__type', $type);
+                    $this->variable('tico_set_content__content', $this->tpl($type, $data));
+                    $this->hook('tico_set_content');
+                    $this->response()->setContent($this->variable('tico_set_content__content'));
+                    $this->variable('tico_set_content__content', null);
+                    $this->variable('tico_set_content__type', null);
+                }
                 break;
         }
         if (!empty($headers))
@@ -531,6 +582,14 @@ class Tico
         return $this;
     }
 
+    public function datetime($time = null)
+    {
+        if (is_null($time)) $time = time();
+        $dt = \DateTime::createFromFormat('U', $time);
+        $dt->setTimezone(new \DateTimeZone('UTC'));
+        return $dt->format('D, d M Y H:i:s').' GMT';
+    }
+
     public function cached()
     {
         $response = $this->response();
@@ -544,13 +603,6 @@ class Tico
             'content-type' => $response->headers->get('Content-Type'),
             'content' => $content,
         )) : null;
-    }
-
-    private function _mkDateTime($time)
-    {
-        $dt = DateTime::createFromFormat('U', $time);
-        $dt->setTimezone(new DateTimeZone('UTC'));
-        return $dt->format('D, d M Y H:i:s').' GMT';
     }
 
     private function _serveCached($cached)
@@ -572,8 +624,8 @@ class Tico
                 $this->variable('tico_before_serve_cached__content_type', null);
                 $this->variable('tico_before_serve_cached__content', null);
                 header('Content-Type: '.$content['content-type'], false, $content['status']);
-                header('Last-Modified: '.$this->_mkDateTime($content['time']), false, $content['status']);
-                header('Date: '.$this->_mkDateTime(time()), false, $content['status']);
+                header('Last-Modified: '.$this->datetime($content['time']), false, $content['status']);
+                header('Date: '.$this->datetime(time()), false, $content['status']);
                 header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
                 echo $content['content'];
                 $this->hook('tico_after_serve_cached');
@@ -585,14 +637,26 @@ class Tico
 
     public function redirect($uri, $code = 302)
     {
-        $this->response()->setTargetUrl($uri, $code);
+        $this->variable('tico_redirect__code', $code);
+        $this->variable('tico_redirect__uri', $uri);
+        $this->hook('tico_redirect');
+        $this->response()->setTargetUrl($this->variable('tico_redirect__uri'), $this->variable('tico_redirect__code'));
+        $this->variable('tico_redirect__code', null);
+        $this->variable('tico_redirect__uri', null);
         $this->variable('cache', false); // redirects not cached
         return $this;
     }
 
     public function enqueue($type, $id, $asset_def = array())
     {
-        $this->loader()->enqueue($type, $id, (array)$asset_def);
+        $this->variable('tico_enqueue__type', $type);
+        $this->variable('tico_enqueue__id', $id);
+        $this->variable('tico_enqueue__asset', (array)$asset_def);
+        $this->hook('tico_enqueue');
+        $this->loader()->enqueue($this->variable('tico_enqueue__type'), $this->variable('tico_enqueue__id'), $this->variable('tico_enqueue__asset'));
+        $this->variable('tico_enqueue__type', null);
+        $this->variable('tico_enqueue__id', null);
+        $this->variable('tico_enqueue__asset', null);
         return $this;
     }
 
@@ -944,8 +1008,14 @@ class Tico
 
         // if cache enabled serve fast and early
         $cache = $this->get('cache');
-        $cached = is_object($cache) && method_exists($cache, 'get') ? $cache->get($this->_k) : null;
-        if ($cached && $this->_serveCached($cached)) return true;
+        if (is_object($cache) && method_exists($cache, 'get'))
+        {
+            $this->variable('tico_serve_cache__key', $this->_k);
+            $this->hook('tico_serve_cache');
+            $cached = $cache->get($this->variable('tico_serve_cache__key'));
+            $this->variable('tico_serve_cache__key', null);
+            if ($cached && $this->_serveCached($cached)) return true;
+        }
         return false;
     }
 
@@ -1022,19 +1092,20 @@ class Tico
         }
 
         $this->response()->prepare($this->request());
+        $this->hook('tico_prepared_response');
 
         // if cache enabled for this page, cache it
         if ($this->variable('cache') && (is_object($cache = $this->get('cache')) && method_exists($cache, 'set') ) && ($cached = $this->cached()))
         {
-            $this->variable('tico_before_cache__content', $cached);
-            $this->hook('tico_before_cache');
-            $cached = $this->variable('tico_before_cache__content');
-            $this->variable('tico_before_cache__content', null);
-            $cache->set($this->_k, $cached);
-            $this->hook('tico_after_cache');
+            $this->variable('tico_cache_response__key', $this->_k);
+            $this->variable('tico_cache_response__content', $cached);
+            $this->hook('tico_cache_response');
+            $cache->set($this->variable('tico_cache_response__key'), $this->variable('tico_cache_response__content'));
+            $this->variable('tico_cache_response__key', null);
+            $this->variable('tico_cache_response__content', null);
         }
 
-        $this->hook('tico_before_send');
+        $this->hook('tico_send_response');
         $this->response()->send();
         $this->hook('tico_after_serve');
         return true;
