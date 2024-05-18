@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.20.0
+* @version 1.21.0
 * https://github.com/foo123/tico
 *
 */
@@ -39,7 +39,7 @@ class TicoValue
 
 class Tico
 {
-    const VERSION = '1.20.0';
+    const VERSION = '1.21.0';
 
     public $Loader = null;
     public $Router = null;
@@ -624,8 +624,8 @@ class Tico
                 $this->variable('tico_before_serve_cached__content_type', null);
                 $this->variable('tico_before_serve_cached__content', null);
                 header('Content-Type: '.$content['content-type'], false, $content['status']);
-                header('Last-Modified: '.$this->datetime($content['time']), false, $content['status']);
-                header('Date: '.$this->datetime(time()), false, $content['status']);
+                header('Last-Modified: '.$this->datetime($content['time']), true, $content['status']);
+                header('Date: '.$this->datetime(time()), true, $content['status']);
                 header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
                 echo $content['content'];
                 $this->hook('tico_after_serve_cached');
@@ -737,6 +737,93 @@ class Tico
         {
             return $this->uri($this->router()->make($route, $params, $strict));
         }
+    }
+
+    public function flatten($input, $output = array(), $prefix = null)
+    {
+        foreach ($input as $key => $val)
+        {
+            $name = empty($prefix) ? $key : ($prefix."[$key]");
+
+            if (is_array($val)) $output = array_merge($output, $this->flatten($val, array(), $name));
+            else $output[$name] = $val;
+        }
+        return $output;
+    }
+
+    public function doHTTP($uri, $options = null, &$responseHeaders = null)
+    {
+        // TODO: use cURL as alternative
+        $context = null;
+        if (!empty($options))
+        {
+            if (empty($options['http']['header']))
+            {
+                $options['http']['header'] = "User-Agent: tico";
+            }
+            else
+            {
+                $options['http']['header'] .= "\r\nUser-Agent: tico";
+            }
+        }
+        else
+        {
+            $options = array('http' => array('header' => 'User-Agent: tico'));
+        }
+        $context = stream_context_create($options);
+
+        $content = file_get_contents($uri, false, $context);
+        $responseHeaders = implode("\r\n", $http_response_header);
+
+        return $content;
+    }
+
+    public function http($uri, $data = null, $method = 'GET', $type = 'server', $options = null, &$responseHeaders = null)
+    {
+        // TODO: support POST files
+        $type = strtolower((string)$type);
+        $method = strtoupper((string)$method);
+        $output = '';
+
+        if ('client' === $type)
+        {
+            switch ($method)
+            {
+                case 'POST':
+                header('Content-Type: text/html', false, 200);
+                header('Date: '.$this->datetime(time()), true, 200);
+                //header('HTTP/1.0 200 OK', true, 200);
+                echo ('<!DOCTYPE html><html lang="en"><head><title>POST '.$uri.'</title></head><body onload="do_post();"><form name="post_form" id="post_form" method="post" action="'.$uri.'">'.(!empty($data) && !empty($flat=$this->flatten($data)) ? implode('', array_map(function($key, $val) {return '<input type="hidden" name="'.$key.'" value="'.$val.'" />';}, array_keys($flat), $flat)) : '').'</form><script type="text/javascript">function do_post() {document.post_form.submit();}</script></body></html>');
+                break;
+
+                case 'GET':
+                if (!empty($data)) $uri = $uri.(false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&');
+                header("Location: $uri", true, 303);
+                break;
+            }
+        }
+        else//if ('server' === $type)
+        {
+            switch ($method)
+            {
+                case 'POST':
+                $content = !empty($data) ? http_build_query($data, '', '&') : '';
+                $stream = array('http' => array(
+                    'method' => 'POST',
+                    'header' => "Content-type: application/x-www-form-urlencoded",
+                    'content' => $content
+                ));
+                if (!empty($options)) $stream = array_replace_recursive($stream, $options);
+                $output = $this->doHTTP($uri, $stream, $responseHeaders);
+                break;
+
+                case 'GET':
+                $output = $this->doHTTP($uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), $options, $responseHeaders);
+                break;
+            }
+        }
+
+        return $output;
     }
 
     public function isSsl()
