@@ -327,6 +327,16 @@ class Tico
         return $this;
     }
 
+    public function httpfoundation()
+    {
+        static $_included = false;
+        if (!$_included && (!class_exists('HttpRequest', false) || !class_exists('HttpResponse', false)))
+        {
+            $_included = true;
+            include(TICO . '/HttpFoundation.php');
+        }
+    }
+
     public function loader()
     {
         if ($this->Loader) return $this->Loader;
@@ -358,17 +368,16 @@ class Tico
     public function request(/*$req*/)
     {
         $args = func_get_args();
+        $this->httpfoundation();
         if (0 < count($args))
         {
             $req = $args[0];
-            if (!class_exists('HttpRequest', false)) include(TICO . '/HttpFoundation.php');
             if ($req instanceof HttpRequest) $this->Request = $req;
             return $this;
         }
         else
         {
             if ($this->Request) return $this->Request;
-            if (!class_exists('HttpRequest', false)) include(TICO . '/HttpFoundation.php');
             $this->variable('tico_request', null);
             $this->hook('tico_request');
             if (($req = $this->variable('tico_request')) && ($req instanceof HttpRequest))
@@ -387,17 +396,16 @@ class Tico
     public function response(/*$res*/)
     {
         $args = func_get_args();
+        $this->httpfoundation();
         if (0 < count($args))
         {
             $res = $args[0];
-            if (!class_exists('HttpResponse', false)) include(TICO . '/HttpFoundation.php');
             if ($res instanceof HttpResponse) $this->Response = $res;
             return $this;
         }
         else
         {
             if ($this->Response) return $this->Response;
-            if (!class_exists('HttpResponse', false)) include(TICO . '/HttpFoundation.php');
             $this->variable('tico_response', null);
             $this->hook('tico_response');
             if (($res = $this->variable('tico_response')) && ($res instanceof HttpResponse))
@@ -623,7 +631,7 @@ class Tico
                 $content['content'] = $this->variable('tico_before_serve_cached__content');
                 $this->variable('tico_before_serve_cached__content_type', null);
                 $this->variable('tico_before_serve_cached__content', null);
-                header('Content-Type: '.$content['content-type'], false, $content['status']);
+                header('Content-Type: '.$content['content-type'], true, $content['status']);
                 header('Last-Modified: '.$this->datetime($content['time']), true, $content['status']);
                 header('Date: '.$this->datetime(time()), true, $content['status']);
                 header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
@@ -771,59 +779,60 @@ class Tico
             $options = array('http' => array('header' => 'User-Agent: tico'));
         }
         $context = stream_context_create($options);
-
-        $content = file_get_contents($uri, false, $context);
+        $responseBody = file_get_contents($uri, false, $context);
         $responseHeaders = implode("\r\n", $http_response_header);
-
-        return $content;
+        return $responseBody;
     }
 
-    public function http($uri, $data = null, $method = 'GET', $type = 'server', $options = null, &$responseHeaders = null)
+    public function http($method = 'get', $type = 'server', $uri = '', $data = null, $options = null, &$responseBody = '', &$responseHeaders = null)
     {
         // TODO: support POST files
+        $method = strtolower((string)$method);
         $type = strtolower((string)$type);
-        $method = strtoupper((string)$method);
-        $output = '';
-
-        if ('client' === $type)
+        if (!empty($uri))
         {
-            switch ($method)
+            if ('client' === $type)
             {
-                case 'POST':
-                header('Content-Type: text/html', false, 200);
-                header('Date: '.$this->datetime(time()), true, 200);
-                //header('HTTP/1.0 200 OK', true, 200);
-                echo ('<!DOCTYPE html><html lang="en"><head><title>POST '.$uri.'</title></head><body onload="do_post();"><form name="post_form" id="post_form" method="post" action="'.$uri.'">'.(!empty($data) && !empty($flat=$this->flatten($data)) ? implode('', array_map(function($key, $val) {return '<input type="hidden" name="'.$key.'" value="'.$val.'" />';}, array_keys($flat), $flat)) : '').'</form><script type="text/javascript">function do_post() {document.post_form.submit();}</script></body></html>');
-                break;
+                switch ($method)
+                {
+                    case 'post':
+                    header('Content-Type: text/html; charset=UTF-8', true, 200);
+                    header('Date: '.$this->datetime(time()), true, 200);
+                    echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><title>POST '.$uri.'</title></head><body onload="do_post();"><form name="post_form" id="post_form" method="post" action="'.$uri.'">'.(!empty($data) && !empty($flat=$this->flatten($data)) ? implode('', array_map(function($key, $val) {return '<input type="hidden" name="'.$key.'" value="'.$val.'" />';}, array_keys($flat), $flat)) : '').'</form><script type="text/javascript">function do_post() {document.post_form.submit();}</script></body></html>');
+                    break;
 
-                case 'GET':
-                if (!empty($data)) $uri = $uri.(false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&');
-                header("Location: $uri", true, 303);
-                break;
+                    case 'get':
+                    default:
+                    if (!empty($data)) $uri .= (false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&');
+                    header("Location: $uri", true, 303);
+                    header('Content-Type: text/html; charset=UTF-8', true, 303);
+                    header('Date: '.$this->datetime(time()), true, 303);
+                    echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><meta http-equiv="refresh" content="0; URL='.$uri.'"/><title>GET '.$uri.'</title></head><body onload="do_get();"><script type="text/javascript">function do_get() {window.location.href = "'.$uri.'";}</script></body></html>');
+                    break;
+                }
+            }
+            else//if ('server' === $type)
+            {
+                switch ($method)
+                {
+                    case 'post':
+                    $stream = array('http' => array(
+                        'method' => 'POST',
+                        'header' => "Content-type: application/x-www-form-urlencoded",
+                        'content' => !empty($data) ? http_build_query($data, '', '&') : ''
+                    ));
+                    if (!empty($options)) $stream = array_replace_recursive($stream, $options);
+                    $responseBody = $this->doHTTP($uri, $stream, $responseHeaders);
+                    break;
+
+                    case 'get':
+                    default:
+                    $responseBody = $this->doHTTP($uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), $options, $responseHeaders);
+                    break;
+                }
             }
         }
-        else//if ('server' === $type)
-        {
-            switch ($method)
-            {
-                case 'POST':
-                $content = !empty($data) ? http_build_query($data, '', '&') : '';
-                $stream = array('http' => array(
-                    'method' => 'POST',
-                    'header' => "Content-type: application/x-www-form-urlencoded",
-                    'content' => $content
-                ));
-                if (!empty($options)) $stream = array_replace_recursive($stream, $options);
-                $output = $this->doHTTP($uri, $stream, $responseHeaders);
-                break;
-
-                case 'GET':
-                $output = $this->doHTTP($uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), $options, $responseHeaders);
-                break;
-            }
-        }
-
-        return $output;
+        return $this;
     }
 
     public function isSsl()
