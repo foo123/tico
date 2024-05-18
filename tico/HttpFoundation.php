@@ -2712,6 +2712,7 @@ class HttpResponse
     protected $callback = null;
     protected $streamed;
     private $headersSent;
+    private $canceled = false;
 
     protected $version;
 
@@ -2820,8 +2821,16 @@ class HttpResponse
         $this->headers = clone $this->headers;
     }
 
+    public function cancel($bool = true)
+    {
+        $this->canceled = (bool)$bool;
+        return $this;
+    }
+
     public function prepare( /*HttpRequest*/ $request )
     {
+        if ($this->canceled) return $this;
+
         if ( $this->file ) {
             if (!$this->headers->has('Content-Type')) {
                 $file_type = mime_content_type( $this->file );
@@ -3051,6 +3060,8 @@ class HttpResponse
 
     public function send()
     {
+        if ($this->canceled) return $this;
+
         $this->sendHeaders();
         $this->sendContent();
 
@@ -3059,7 +3070,6 @@ class HttpResponse
         } elseif (!\in_array(PHP_SAPI, array('cli', 'phpdbg'), true)) {
             self::closeOutputBuffers(0, true);
         }
-
         return $this;
     }
 

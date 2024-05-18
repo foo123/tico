@@ -787,10 +787,10 @@ class Tico
     public function http($method = 'get', $type = 'server', $uri = '', $data = null, $options = null, &$responseBody = '', &$responseHeaders = null)
     {
         // TODO: support POST files
-        $method = strtolower((string)$method);
-        $type = strtolower((string)$type);
         if (!empty($uri))
         {
+            $method = strtolower((string)$method);
+            $type = strtolower((string)$type);
             if ('client' === $type)
             {
                 switch ($method)
