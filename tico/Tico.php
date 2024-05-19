@@ -749,85 +749,159 @@ class Tico
 
     public function flatten($input, $output = array(), $prefix = null)
     {
-        foreach ($input as $key => $val)
+        if (!empty($input))
         {
-            $name = empty($prefix) ? $key : ($prefix."[$key]");
+            foreach ($input as $key => $val)
+            {
+                $name = empty($prefix) ? $key : ($prefix."[$key]");
 
-            if (is_array($val)) $output = array_merge($output, $this->flatten($val, array(), $name));
-            else $output[$name] = $val;
+                if (is_array($val)) $output = $this->flatten($val, $output, $name);
+                else $output[$name] = $val;
+            }
         }
         return $output;
     }
 
-    public function doHTTP($uri, $options = null, &$responseHeaders = null)
+    public function kv($input, $output = array(), $glue = '')
     {
-        // TODO: use cURL as alternative
-        $context = null;
-        if (!empty($options))
+        if (!empty($input))
         {
-            if (empty($options['http']['header']))
+            foreach ($input as $key => $val)
             {
-                $options['http']['header'] = "User-Agent: tico";
+                $output[] = ((string)$key) . $glue . ((string)$val);
+            }
+        }
+        return $output;
+    }
+
+    public function httpCLIENT($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
+    {
+        switch (strtoupper($method))
+        {
+            case 'POST':
+            if (!empty($requestBody))
+            {
+                if (is_array($requestBody))
+                {
+                    $requestData = $requestBody;
+                }
+                else
+                {
+                    $requestData = array();
+                    @parse_str((string)$requestBody, $requestData);
+                }
+                $requestData = $this->flatten($requestData);
+                $requestBody = implode('', array_map(function($name, $value) {return '<input type="hidden" name="'.$name.'" value="'.$value.'" />';}, array_keys($requestData), $requestData));
             }
             else
             {
-                $options['http']['header'] .= "\r\nUser-Agent: tico";
+                $requestBody = '';
             }
+            header('Content-Type: text/html; charset=UTF-8', true, 200);
+            header('Date: '.$this->datetime(time()), true, 200);
+            echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><title>POST '.$uri.'</title></head><body onload="do_post();"><form name="post_form" id="post_form" method="post" enctype="application/x-www-form-urlencoded" action="'.$uri.'">'.$requestBody.'</form><script type="text/javascript">function do_post() {document.post_form.submit();}</script></body></html>');
+            break;
+
+            case 'GET':
+            default:
+            header("Location: $uri", true, 303);
+            header('Content-Type: text/html; charset=UTF-8', true, 303);
+            header('Date: '.$this->datetime(time()), true, 303);
+            echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><meta http-equiv="refresh" content="0; URL='.$uri.'"/><title>GET '.$uri.'</title></head><body onload="do_get();"><script type="text/javascript">function do_get() {window.location.href = "'.$uri.'";}</script></body></html>');
+            break;
         }
-        else
-        {
-            $options = array('http' => array('header' => 'User-Agent: tico'));
-        }
-        $context = stream_context_create($options);
-        $responseBody = file_get_contents($uri, false, $context);
-        $responseHeaders = implode("\r\n", $http_response_header);
+        return null;
+    }
+
+    public function httpFILE($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
+    {
+        $context = stream_context_create(array(
+            "http" => array(
+                "method"        => strtoupper($method),
+                "header"        => implode("\r\n", (array)$requestHeaders),
+                "content"       => (string)$requestBody,
+                "ignore_errors" => true,
+            ),
+        ));
+        $responseBody = @file_get_contents($uri, false, $context);
+        $responseHeaders = array_merge(array(), $http_response_header);
+        if (preg_match('{HTTP\/\S*\s(\d{3})}', $responseHeaders[0], $m)) $responseStatus = (int)$m[1];
         return $responseBody;
     }
 
-    public function http($method = 'get', $type = 'server', $uri = '', $data = null, $options = null, &$responseBody = '', &$responseHeaders = null)
+    public function httpCURL($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
     {
-        // TODO: support POST files
+        if (!function_exists('curl_init')) return false;
+        $curl = curl_init($uri);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_HEADERFUNCTION, function($curl, $header) use (&$responseHeaders) {
+            if (is_null($responseHeaders)) $responseHeaders = array();
+            $len = strlen($header);
+            $header = explode(':', $header, 2);
+            if (count($header) >= 2)
+            {
+                $k = strtolower(trim($header[0])); $v = trim($header[1]);
+                if (!isset($responseHeaders[$k])) $responseHeaders[$k] = array($v);
+                else $responseHeaders[$k][] = $v;
+            }
+            return $len;
+        });
+        curl_setopt($curl, CURLOPT_POST, 'POST' === strtoupper($method));
+        curl_setopt($curl, CURLOPT_HTTPHEADER, $requestHeaders);
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $requestBody);
+        $responseBody = @curl_exec($curl);
+        $responseStatus = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+        return $responseBody;
+    }
+
+    public function http($method = 'get', $transport = 'server', $uri = '', $data = null, $headers = null, &$responseBody = '', &$responseStatus = 0, &$responseHeaders = null)
+    {
+        // TODO: support POST files ??
+        // TODO: support server socket transport ??
         if (!empty($uri))
         {
             $method = strtolower((string)$method);
-            $type = strtolower((string)$type);
-            if ('client' === $type)
+            $transport = strtolower((string)$transport);
+            if ('client' === $transport || 'browser' === $transport)
             {
                 switch ($method)
                 {
                     case 'post':
-                    header('Content-Type: text/html; charset=UTF-8', true, 200);
-                    header('Date: '.$this->datetime(time()), true, 200);
-                    echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><title>POST '.$uri.'</title></head><body onload="do_post();"><form name="post_form" id="post_form" method="post" action="'.$uri.'">'.(!empty($data) && !empty($flat=$this->flatten($data)) ? implode('', array_map(function($key, $val) {return '<input type="hidden" name="'.$key.'" value="'.$val.'" />';}, array_keys($flat), $flat)) : '').'</form><script type="text/javascript">function do_post() {document.post_form.submit();}</script></body></html>');
+                    $responseBody = $this->httpCLIENT('POST', $uri, $data);
                     break;
 
                     case 'get':
                     default:
-                    if (!empty($data)) $uri .= (false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&');
-                    header("Location: $uri", true, 303);
-                    header('Content-Type: text/html; charset=UTF-8', true, 303);
-                    header('Date: '.$this->datetime(time()), true, 303);
-                    echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><meta http-equiv="refresh" content="0; URL='.$uri.'"/><title>GET '.$uri.'</title></head><body onload="do_get();"><script type="text/javascript">function do_get() {window.location.href = "'.$uri.'";}</script></body></html>');
+                    $responseBody = $this->httpCLIENT('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''));
                     break;
                 }
             }
-            else//if ('server' === $type)
+            elseif ('curl' === $transport || 'server_curl' === $transport)
             {
                 switch ($method)
                 {
                     case 'post':
-                    $stream = array('http' => array(
-                        'method' => 'POST',
-                        'header' => "Content-type: application/x-www-form-urlencoded",
-                        'content' => !empty($data) ? http_build_query($data, '', '&') : ''
-                    ));
-                    if (!empty($options)) $stream = array_replace_recursive($stream, $options);
-                    $responseBody = $this->doHTTP($uri, $stream, $responseHeaders);
+                    $responseBody = $this->httpCURL('POST', $uri, !empty($data) ? http_build_query($data, '', '&') : '', $this->kv($headers, array('Content-type: application/x-www-form-urlencoded'), ': '), $responseStatus, $responseHeaders);
                     break;
 
                     case 'get':
                     default:
-                    $responseBody = $this->doHTTP($uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), $options, $responseHeaders);
+                    $responseBody = $this->httpCURL('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), '', $this->kv($headers, array(), ': '), $responseStatus, $responseHeaders);
+                    break;
+                }
+            }
+            else//if ('server' === $transport || 'server_file' === $transport)
+            {
+                switch ($method)
+                {
+                    case 'post':
+                    $responseBody = $this->httpFILE('POST', $uri, !empty($data) ? http_build_query($data, '', '&') : '', $this->kv($headers, array('Content-type: application/x-www-form-urlencoded'), ': '), $responseStatus, $responseHeaders);
+                    break;
+
+                    case 'get':
+                    default:
+                    $responseBody = $this->httpFILE('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), '', $this->kv($headers, array(), ': '), $responseStatus, $responseHeaders);
                     break;
                 }
             }
