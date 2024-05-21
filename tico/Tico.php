@@ -791,15 +791,15 @@ class Tico
                     @parse_str((string)$requestBody, $requestData);
                 }
                 $requestData = $this->flatten($requestData);
-                $requestBody = implode('', array_map(function($name, $value) {return '<input type="hidden" name="'.$name.'" value="'.$value.'" />';}, array_keys($requestData), $requestData));
+                $formData = implode('', array_map(function($name, $value) {return '<input type="hidden" name="'.$name.'" value="'.$value.'" />';}, array_keys($requestData), $requestData));
             }
             else
             {
-                $requestBody = '';
+                $formData = '';
             }
             header('Content-Type: text/html; charset=UTF-8', true, 200);
             header('Date: '.$this->datetime(time()), true, 200);
-            echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><title>POST '.$uri.'</title></head><body onload="do_post();"><form name="post_form" id="post_form" method="post" enctype="application/x-www-form-urlencoded" action="'.$uri.'">'.$requestBody.'</form><script type="text/javascript">function do_post() {document.post_form.submit();}</script></body></html>');
+            echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><title>POST '.$uri.'</title></head><body onload="do_post();"><form name="post_form" id="post_form" method="post" enctype="application/x-www-form-urlencoded" action="'.$uri.'">'.$formData.'</form><script type="text/javascript">function do_post() {document.post_form.submit();}</script></body></html>');
             break;
 
             case 'GET':
@@ -811,22 +811,6 @@ class Tico
             break;
         }
         return null;
-    }
-
-    public function httpFILE($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
-    {
-        $context = stream_context_create(array(
-            "http" => array(
-                "method"        => strtoupper($method),
-                "header"        => implode("\r\n", (array)$requestHeaders),
-                "content"       => (string)$requestBody,
-                "ignore_errors" => true,
-            ),
-        ));
-        $responseBody = @file_get_contents($uri, false, $context);
-        $responseHeaders = array_merge(array(), $http_response_header);
-        if (preg_match('{HTTP\/\S*\s(\d{3})}', $responseHeaders[0], $m)) $responseStatus = (int)$m[1];
-        return $responseBody;
     }
 
     public function httpCURL($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
@@ -846,12 +830,35 @@ class Tico
             }
             return $len;
         });
-        curl_setopt($curl, CURLOPT_POST, 'POST' === strtoupper($method));
         curl_setopt($curl, CURLOPT_HTTPHEADER, $requestHeaders);
-        curl_setopt($curl, CURLOPT_POSTFIELDS, $requestBody);
+        if ('POST' === strtoupper($method))
+        {
+            curl_setopt($curl, CURLOPT_POST, true);
+            curl_setopt($curl, CURLOPT_POSTFIELDS, $requestBody);
+        }
+        else
+        {
+            curl_setopt($curl, CURLOPT_HTTPGET, true);
+        }
         $responseBody = @curl_exec($curl);
-        $responseStatus = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $responseStatus = @curl_getinfo($curl, CURLINFO_HTTP_CODE);
         curl_close($curl);
+        return $responseBody;
+    }
+
+    public function httpFILE($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
+    {
+        $context = stream_context_create(array(
+            "http" => array(
+                "method"        => strtoupper($method),
+                "header"        => implode("\r\n", (array)$requestHeaders),
+                "content"       => (string)$requestBody,
+                "ignore_errors" => true,
+            ),
+        ));
+        $responseBody = @file_get_contents($uri, false, $context);
+        $responseHeaders = array_merge(array(), $http_response_header);
+        if (preg_match('#HTTP/\\S*\\s+(\\d{3})#', $responseHeaders[0], $m)) $responseStatus = (int)$m[1];
         return $responseBody;
     }
 
