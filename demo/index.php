@@ -160,6 +160,16 @@ or
     tico()->redirect(tico()->uri('/'), 302);
 
 })
+->on('*', '/fetch', function() {
+
+    tico()->variable('cache', false); // don't cache this page
+    $uri = tico()->request()->query->get('uri', 'https://github.com/foo123/tico');
+    tico()->http('get', 'server', $uri, null, null, $output, $status);
+    tico()->output(
+        200 === $status ? $output : "<span style=\"color:".(400 <= $status && $status < 500 ? 'orange' : (500 <= $status ? 'red' : 'green')).";font-size:16px;\">-- Response Status for &quot;{$uri}&quot;: <b>{$status}</b> --</span>",
+        'html'
+    );
+})
 ->on(false, function() {
 
     tico()->output(
