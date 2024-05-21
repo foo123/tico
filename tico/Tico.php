@@ -797,17 +797,23 @@ class Tico
             {
                 $formData = '';
             }
-            header('Content-Type: text/html; charset=UTF-8', true, 200);
-            header('Date: '.$this->datetime(time()), true, 200);
-            echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><title>POST '.$uri.'</title></head><body onload="do_post();"><form name="post_form" id="post_form" method="post" enctype="application/x-www-form-urlencoded" action="'.$uri.'">'.$formData.'</form><script type="text/javascript">function do_post() {document.post_form.submit();}</script></body></html>');
+            try {
+                @header('Content-Type: text/html; charset=UTF-8', true, 200);
+                @header('Date: '.$this->datetime(time()), true, 200);
+                echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><title>POST '.$uri.'</title></head><body onload="do_post();"><form name="post_form" id="post_form" method="post" enctype="application/x-www-form-urlencoded" action="'.$uri.'">'.$formData.'</form><script type="text/javascript">function do_post() {document.post_form.submit();}</script></body></html>');
+            } catch (Exception $e) {
+            }
             break;
 
             case 'GET':
             default:
-            header("Location: $uri", true, 303);
-            header('Content-Type: text/html; charset=UTF-8', true, 303);
-            header('Date: '.$this->datetime(time()), true, 303);
-            echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><meta http-equiv="refresh" content="0; URL='.$uri.'"/><title>GET '.$uri.'</title></head><body onload="do_get();"><script type="text/javascript">function do_get() {window.location.href = "'.$uri.'";}</script></body></html>');
+            try {
+                @header("Location: $uri", true, 303);
+                @header('Content-Type: text/html; charset=UTF-8', true, 303);
+                @header('Date: '.$this->datetime(time()), true, 303);
+                echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><meta http-equiv="refresh" content="0; URL='.$uri.'"/><title>GET '.$uri.'</title></head><body onload="do_get();"><script type="text/javascript">function do_get() {window.location.href = "'.$uri.'";}</script></body></html>');
+            } catch (Exception $e) {
+            }
             break;
         }
         return null;
@@ -840,8 +846,12 @@ class Tico
         {
             curl_setopt($curl, CURLOPT_HTTPGET, true);
         }
-        $responseBody = @curl_exec($curl);
-        $responseStatus = @curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        try {
+            $responseBody = @curl_exec($curl);
+            $responseStatus = @curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        } catch (Exception $e) {
+            $responseBody = false;
+        }
         curl_close($curl);
         return $responseBody;
     }
@@ -856,9 +866,13 @@ class Tico
                 "ignore_errors" => true,
             ),
         ));
-        $responseBody = @file_get_contents($uri, false, $context);
-        $responseHeaders = array_merge(array(), $http_response_header);
-        if (preg_match('#HTTP/\\S*\\s+(\\d{3})#', $responseHeaders[0], $m)) $responseStatus = (int)$m[1];
+        try {
+            $responseBody = @file_get_contents($uri, false, $context);
+        } catch (Exception $e) {
+            $responseBody = false;
+        }
+        if (!empty($http_response_header)) $responseHeaders = array_merge(array(), $http_response_header);
+        if (!empty($responseHeaders) && preg_match('#HTTP/\\S*\\s+(\\d{3})#', $responseHeaders[0], $m)) $responseStatus = (int)$m[1];
         return $responseBody;
     }
 
