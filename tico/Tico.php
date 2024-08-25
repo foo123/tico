@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.21.0
+* @version 1.21.1
 * https://github.com/foo123/tico
 *
 */
@@ -39,7 +39,7 @@ class TicoValue
 
 class Tico
 {
-    const VERSION = '1.21.0';
+    const VERSION = '1.21.1';
 
     public $Loader = null;
     public $Router = null;
@@ -1198,7 +1198,14 @@ class Tico
         $this->_fixServerVars();
 
         // if cache enabled serve fast and early
-        $cache = $this->get('cache');
+        try
+        {
+            $cache = $this->get('cache');
+        }
+        catch (Exception $e)
+        {
+            $cache = null;
+        }
         if (is_object($cache) && method_exists($cache, 'get'))
         {
             $this->variable('tico_serve_cache__key', $this->_k);
@@ -1286,7 +1293,22 @@ class Tico
         $this->hook('tico_prepared_response');
 
         // if cache enabled for this page, cache it
-        if ($this->variable('cache') && (is_object($cache = $this->get('cache')) && method_exists($cache, 'set') ) && ($cached = $this->cached()))
+        if ($this->variable('cache'))
+        {
+            try
+            {
+                $cache = $this->get('cache');
+            }
+            catch (Exception $e)
+            {
+                $cache = null;
+            }
+        }
+        else
+        {
+            $cache = null;
+        }
+        if (is_object($cache) && method_exists($cache, 'set') && ($cached = $this->cached()))
         {
             $this->variable('tico_cache_response__key', $this->_k);
             $this->variable('tico_cache_response__content', $cached);
