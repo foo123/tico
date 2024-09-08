@@ -1,0 +1,72 @@
+<IfModule mod_rewrite.c>
+    Options +FollowSymlinks
+
+    RewriteEngine On
+
+    # If you installed in a subfolder, you will need to
+    # change the following line to match the subfolder you need.
+    # http://httpd.apache.org/docs/current/mod/mod_rewrite.html#rewritebase
+    RewriteBase /tico/test
+    
+    # let subfolder app handle its own routes
+    #RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^subfolder/ - [L]
+
+    # Redirect Trailing Slashes...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)/$ /$1 [L,R=301]
+
+    # Rewrite "www.example.com -> example.com"
+    #RewriteCond %{HTTPS} on
+    RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+    RewriteRule ^ http://%1%{REQUEST_URI} [R=301,L]
+
+    # Redirect http:// -> https://...
+    #RewriteCond %{HTTPS} !=on
+    #RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # If existing file (NOT directory), serve it,
+    # else point everything else to index.php front-controller
+    RewriteRule ^index\.php$ - [L]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    #RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule . index.php [L]
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule \.(php|html|txt)$ index.php [L,NC]
+
+    # Ensure Authorization header is passed along
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    # If we don't have mod_rewrite installed, all 404's (and 403's ??)
+    # can be sent to index.php front-controller, and everything works as normal.
+    ErrorDocument 404 index.php
+    ErrorDocument 403 index.php
+</IfModule>
+
+<FilesMatch "\.(htaccess|htpasswd|ini|log|sh|inc|bak|env|gitignore|gitattributes)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+<Files "composer.json">
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+<Files "package.json">
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+<Files "composer.lock">
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+<FilesMatch "config-local\.php|config\.php">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
