@@ -1,6 +1,6 @@
 # tico
 
-Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.21.1**)
+Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.22.0** in progress)
 
 
 **Uses:**
@@ -8,7 +8,7 @@ Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.21.1**)
 1. [`Importer`](https://github.com/foo123/Importer) class &amp; asset dependency loader
 2. [`Dromeo`](https://github.com/foo123/Dromeo) versatile pattern router
 3. [`InTpl`](https://github.com/foo123/InTpl) simple php templates w/ inheritance
-4. `HttpFoundation` adapted from [Symfony's HttpFoundation component](https://github.com/symfony/http-foundation)
+4. `HttpFoundation` adapted from [Symfony's HttpFoundation component (v.7.3.1 / 2025)](https://github.com/symfony/http-foundation)
 
 
 **demo** (see `/demo/index.php`)

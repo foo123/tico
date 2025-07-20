@@ -4,5 +4,5 @@
 
 <?php $this->start('content'); ?>
 <p>Root: <?php echo $msg; ?></p>
-<p>"<?php echo tico()->requestPath(); ?>", "<?php echo tico()->currentUrl(false); ?>"</p>
+<p>"<?php echo tico()->requestPath(); ?>", "<?php echo tico()->currentUrl(false); ?>", "<?php echo tico()->requestParam('param', '&lt;empty&gt;'); ?>"</p>
 <?php $this->end('content'); ?>

@@ -1,8 +1,8 @@
 <?php
 /*
- * HttpFoundation adapted in a single file for PHP5+
- * from Symfony (https://github.com/symfony/http-foundation)
- * (c) Fabien Potencier <fabien@symfony.com>
+ * HttpFoundation for PHP5+
+ * adapted from Symfony https://github.com/symfony/http-foundation v.7.3.1 06/2025
+ * originally by Fabien Potencier <fabien@symfony.com>
  *
  */
 
@@ -14,9 +14,9 @@ class ParameterBag implements \IteratorAggregate, \Countable
         $this->parameters = $parameters;
     }
 
-    public function all()
+    public function all($key = null)
     {
-        return $this->parameters;
+        return null !== $key ? (isset($this->parameters[$key]) ? $this->parameters[$key] : null) : $this->parameters;
     }
 
     public function keys()
@@ -56,28 +56,43 @@ class ParameterBag implements \IteratorAggregate, \Countable
 
     public function getAlpha($key, $default = '')
     {
-        return preg_replace('/[^[:alpha:]]/', '', $this->get($key, $default));
+        return preg_replace('/[^a-zA-Z]/', '', $this->getString($key, $default));
     }
 
     public function getAlnum($key, $default = '')
     {
-        return preg_replace('/[^[:alnum:]]/', '', $this->get($key, $default));
+        return preg_replace('/[^a-zA-Z0-9]/', '', $this->getString($key, $default));
     }
 
     public function getDigits($key, $default = '')
     {
-        // we need to remove - and + because they're allowed in the filter
-        return str_replace(array('-', '+'), '', $this->filter($key, $default, FILTER_SANITIZE_NUMBER_INT));
+        return preg_replace('/[^0-9]/', '', $this->getString($key, $default));
+    }
+
+    public function getString($key, $default = '')
+    {
+        return (string) $this->get($key, $default);
     }
 
     public function getInt($key, $default = 0)
     {
-        return (int) $this->get($key, $default);
+        return (int) $this->filter($key, $default, FILTER_VALIDATE_INT, array('flags' => FILTER_REQUIRE_SCALAR));
     }
 
     public function getBoolean($key, $default = false)
     {
-        return $this->filter($key, $default, FILTER_VALIDATE_BOOLEAN);
+        return (bool) $this->filter($key, $default, FILTER_VALIDATE_BOOLEAN, array('flags' => FILTER_REQUIRE_SCALAR));
+    }
+
+    public function getEnum($key, $class, $default = null)
+    {
+        $value = $this->get($key);
+
+        if (null === $value) {
+            return $default;
+        }
+
+        return $class::from($value);
     }
 
     public function filter($key, $default = null, $filter = FILTER_DEFAULT, $options = array())
@@ -94,6 +109,15 @@ class ParameterBag implements \IteratorAggregate, \Countable
             $options['flags'] = FILTER_REQUIRE_ARRAY;
         }
 
+        /*if (!isset($options['flags'])) $options['flags'] = 0;
+        $nullOnFailure = $options['flags'] & FILTER_NULL_ON_FAILURE;
+        $options['flags'] |= FILTER_NULL_ON_FAILURE;
+
+        $value = filter_var($value, $filter, $options);
+
+        if ((null !== $value) || $nullOnFailure) {
+            return $value;
+        }*/
         return filter_var($value, $filter, $options);
     }
 
@@ -112,33 +136,30 @@ class ParameterBag implements \IteratorAggregate, \Countable
     public function getHeaders()
     {
         $headers = array();
-        $contentHeaders = array('CONTENT_LENGTH' => true, 'CONTENT_MD5' => true, 'CONTENT_TYPE' => true);
         foreach ($this->parameters as $key => $value) {
             if (0 === strpos($key, 'HTTP_')) {
                 $headers[substr($key, 5)] = $value;
-            }
-            // CONTENT_* are not prefixed with HTTP_
-            elseif (isset($contentHeaders[$key])) {
+            } elseif (in_array($key, array('CONTENT_TYPE', 'CONTENT_LENGTH', 'CONTENT_MD5'), true) && '' !== $value) {
                 $headers[$key] = $value;
             }
         }
 
         if (isset($this->parameters['PHP_AUTH_USER'])) {
             $headers['PHP_AUTH_USER'] = $this->parameters['PHP_AUTH_USER'];
-            $headers['PHP_AUTH_PW'] = isset($this->parameters['PHP_AUTH_PW']) ? $this->parameters['PHP_AUTH_PW'] : '';
+            $headers['PHP_AUTH_PW'] = isset($this->parameters['PHP_AUTH_PW']) ? $this->parameters['PHP_AUTH_PW'] :  '';
         } else {
             /*
              * php-cgi under Apache does not pass HTTP Basic user/pass to PHP by default
              * For this workaround to work, add these lines to your .htaccess file:
-             * RewriteCond %{HTTP:Authorization} ^(.+)$
-             * RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+             * RewriteCond %{HTTP:Authorization} .+
+             * RewriteRule ^ - [E=HTTP_AUTHORIZATION:%0]
              *
              * A sample .htaccess file:
              * RewriteEngine On
-             * RewriteCond %{HTTP:Authorization} ^(.+)$
-             * RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+             * RewriteCond %{HTTP:Authorization} .+
+             * RewriteRule ^ - [E=HTTP_AUTHORIZATION:%0]
              * RewriteCond %{REQUEST_FILENAME} !-f
-             * RewriteRule ^(.*)$ app.php [QSA,L]
+             * RewriteRule ^(.*)$ index.php [QSA,L]
              */
 
             $authorizationHeader = null;
@@ -152,8 +173,10 @@ class ParameterBag implements \IteratorAggregate, \Countable
                 if (0 === stripos($authorizationHeader, 'basic ')) {
                     // Decode AUTHORIZATION header into PHP_AUTH_USER and PHP_AUTH_PW when authorization header is basic
                     $exploded = explode(':', base64_decode(substr($authorizationHeader, 6)), 2);
-                    if (2 == count($exploded)) {
-                        list($headers['PHP_AUTH_USER'], $headers['PHP_AUTH_PW']) = $exploded;
+                    if (2 == \count($exploded)) {
+                        list($AUTH_USER, $AUTH_PW) = $exploded;
+                        $headers['PHP_AUTH_USER'] = $AUTH_USER;
+                        $headers['PHP_AUTH_PW'] = $AUTH_PW;
                     }
                 } elseif (empty($this->parameters['PHP_AUTH_DIGEST']) && (0 === stripos($authorizationHeader, 'digest '))) {
                     // In some circumstances PHP_AUTH_DIGEST needs to be set
@@ -163,7 +186,7 @@ class ParameterBag implements \IteratorAggregate, \Countable
                     /*
                      * XXX: Since there is no PHP_AUTH_BEARER in PHP predefined variables,
                      *      I'll just set $headers['AUTHORIZATION'] here.
-                     *      http://php.net/manual/en/reserved.variables.server.php
+                     *      https://php.net/reserved.variables.server
                      */
                     $headers['AUTHORIZATION'] = $authorizationHeader;
                 }
@@ -176,7 +199,7 @@ class ParameterBag implements \IteratorAggregate, \Countable
 
         // PHP_AUTH_USER/PHP_AUTH_PW
         if (isset($headers['PHP_AUTH_USER'])) {
-            $headers['AUTHORIZATION'] = 'Basic '.base64_encode($headers['PHP_AUTH_USER'].':'.$headers['PHP_AUTH_PW']);
+            $headers['AUTHORIZATION'] = 'Basic '.base64_encode($headers['PHP_AUTH_USER'].':'.(isset($headers['PHP_AUTH_PW']) ? $headers['PHP_AUTH_PW'] : ''));
         } elseif (isset($headers['PHP_AUTH_DIGEST'])) {
             $headers['AUTHORIZATION'] = $headers['PHP_AUTH_DIGEST'];
         }
@@ -187,7 +210,8 @@ class ParameterBag implements \IteratorAggregate, \Countable
 
 class HttpFileBag extends ParameterBag
 {
-    private static $fileKeys = array('error', 'name', 'size', 'tmp_name', 'type');
+    private static $fileKeys0 = array('error', 'name', 'size', 'tmp_name', 'type');
+    private static $fileKeys = array('error', 'full_path', 'name', 'size', 'tmp_name', 'type');
 
     public function __construct(/*array*/ $parameters = array())
     {
@@ -227,7 +251,7 @@ class HttpFileBag extends ParameterBag
             $keys = array_keys($file);
             sort($keys);
 
-            if ($keys == self::$fileKeys) {
+            if ($keys == self::$fileKeys || $keys == self::$fileKeys0) {
                 if (UPLOAD_ERR_NO_FILE == $file['error']) {
                     $file = null;
                 } else {
@@ -253,7 +277,7 @@ class HttpFileBag extends ParameterBag
         $keys = array_keys($data);
         sort($keys);
 
-        if (self::$fileKeys != $keys || !isset($data['name']) || !is_array($data['name'])) {
+        if ((self::$fileKeys != $keys && self::$fileKeys0 != $keys) || !isset($data['name']) || !is_array($data['name'])) {
             return $data;
         }
 
@@ -265,10 +289,11 @@ class HttpFileBag extends ParameterBag
         foreach ($data['name'] as $key => $name) {
             $files[$key] = $this->fixPhpFilesArray(array(
                 'error' => $data['error'][$key],
+                'full_path' => isset($data['full_path'][$key]) ? $data['full_path'][$key] : null,
                 'name' => $name,
-                'type' => $data['type'][$key],
                 'tmp_name' => $data['tmp_name'][$key],
                 'size' => $data['size'][$key],
+                'type' => $data['type'][$key],
             ));
         }
 
@@ -278,6 +303,22 @@ class HttpFileBag extends ParameterBag
 
 class HttpIpUtils
 {
+    const PRIVATE_SUBNETS = array(
+        // PRIVATE_SUBNETS
+        '127.0.0.0/8',    // RFC1700 (Loopback)
+        '10.0.0.0/8',     // RFC1918
+        '192.168.0.0/16', // RFC1918
+        '172.16.0.0/12',  // RFC1918
+        '169.254.0.0/16', // RFC3927
+        '0.0.0.0/8',      // RFC5735
+        '240.0.0.0/4',    // RFC1112
+        '::1/128',        // Loopback
+        'fc00::/7',       // Unique Local Address
+        'fe80::/10',      // Link Local Address
+        '::ffff:0:0/96',  // IPv4 translations
+        '::/128',         // Unspecified address
+    );
+
     private static $checkedIps = array();
 
     private function __construct()
@@ -292,7 +333,7 @@ class HttpIpUtils
 
         $method = substr_count($requestIp, ':') > 1 ? 'checkIp6' : 'checkIp4';
 
-        if ( 'checkIp6' === $method ) {
+        if ('checkIp6' === $method) {
             foreach ($ips as $ip) {
                 if (self::checkIp6($requestIp, $ip)) {
                     return true;
@@ -311,7 +352,7 @@ class HttpIpUtils
 
     public static function checkIp4($requestIp, $ip)
     {
-        $cacheKey = $requestIp.'-'.$ip;
+        $cacheKey = $requestIp.'-'.$ip.'-v4';
         if (isset(self::$checkedIps[$cacheKey])) {
             return self::$checkedIps[$cacheKey];
         }
@@ -344,7 +385,7 @@ class HttpIpUtils
 
     public static function checkIp6($requestIp, $ip)
     {
-        $cacheKey = $requestIp.'-'.$ip;
+        $cacheKey = $requestIp.'-'.$ip.'-v6';
         if (isset(self::$checkedIps[$cacheKey])) {
             return self::$checkedIps[$cacheKey];
         }
@@ -353,8 +394,17 @@ class HttpIpUtils
             throw new \RuntimeException('Unable to check Ipv6. Check that PHP was not compiled with option "disable-ipv6".');
         }
 
+        // Check to see if we were given a IP4 $requestIp or $ip by mistake
+        if (!filter_var($requestIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+            return self::$checkedIps[$cacheKey] = false;
+        }
+
         if (false !== strpos($ip, '/')) {
             list($address, $netmask) = explode('/', $ip, 2);
+
+            if (!filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                return self::$checkedIps[$cacheKey] = false;
+            }
 
             if ('0' === $netmask) {
                 return (bool) unpack('n*', @inet_pton($address));
@@ -364,6 +414,9 @@ class HttpIpUtils
                 return self::$checkedIps[$cacheKey] = false;
             }
         } else {
+            if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                return self::$checkedIps[$cacheKey] = false;
+            }
             $address = $ip;
             $netmask = 128;
         }
@@ -371,7 +424,7 @@ class HttpIpUtils
         $bytesAddr = unpack('n*', @inet_pton($address));
         $bytesTest = unpack('n*', @inet_pton($requestIp));
 
-        if (!$bytesAddr || !$bytesTest) {
+        if (empty($bytesAddr) || empty($bytesTest)) {
             return self::$checkedIps[$cacheKey] = false;
         }
 
@@ -385,6 +438,67 @@ class HttpIpUtils
         }
 
         return self::$checkedIps[$cacheKey] = true;
+    }
+
+    public static function anonymize($ip/* , int $v4Bytes = 1, int $v6Bytes = 8 */)
+    {
+        $v4Bytes = 1 < func_num_args() ? func_get_arg(1) : 1;
+        $v6Bytes = 2 < func_num_args() ? func_get_arg(2) : 8;
+
+        if ($v4Bytes < 0 || $v6Bytes < 0) {
+            throw new \InvalidArgumentException('Cannot anonymize less than 0 bytes.');
+        }
+
+        if ($v4Bytes > 4 || $v6Bytes > 16) {
+            throw new \InvalidArgumentException('Cannot anonymize more than 4 bytes for IPv4 and 16 bytes for IPv6.');
+        }
+
+        /**
+         * If the IP contains a % symbol, then it is a local-link address with scoping according to RFC 4007
+         * In that case, we only care about the part before the % symbol, as the following functions, can only work with
+         * the IP address itself. As the scope can leak information (containing interface name), we do not want to
+         * include it in our anonymized IP data.
+         */
+        if (false !== ($pos=strpos($ip, '%'))) {
+            $ip = substr($ip, 0, $pos);
+        }
+
+        $wrappedIPv6 = false;
+        if ('[' === substr($ip, 0, 1) && ']' === substr($ip, -1, 1)) {
+            $wrappedIPv6 = true;
+            $ip = substr($ip, 1, -1);
+        }
+
+        $mappedIpV4MaskGenerator = function ($mask, $bytesToAnonymize) {
+            $mask .= str_repeat('ff', 4 - $bytesToAnonymize);
+            $mask .= str_repeat('00', $bytesToAnonymize);
+
+            return '::'.implode(':', str_split($mask, 4));
+        };
+
+        $packedAddress = inet_pton($ip);
+        if (4 === strlen($packedAddress)) {
+            $mask = rtrim(str_repeat('255.', 4 - $v4Bytes).str_repeat('0.', $v4Bytes), '.');
+        } elseif ($ip === inet_ntop($packedAddress & inet_pton('::ffff:ffff:ffff'))) {
+            $mask = $mappedIpV4MaskGenerator('ffff', $v4Bytes);
+        } elseif ($ip === inet_ntop($packedAddress & inet_pton('::ffff:ffff'))) {
+            $mask = $mappedIpV4MaskGenerator('', $v4Bytes);
+        } else {
+            $mask = str_repeat('ff', 16 - $v6Bytes).str_repeat('00', $v6Bytes);
+            $mask = implode(':', str_split($mask, 4));
+        }
+        $ip = inet_ntop($packedAddress & inet_pton($mask));
+
+        if ($wrappedIPv6) {
+            $ip = '['.$ip.']';
+        }
+
+        return $ip;
+    }
+
+    public static function isPrivateIp($requestIp)
+    {
+        return self::checkIp($requestIp, self::PRIVATE_SUBNETS);
     }
 }
 
@@ -412,7 +526,8 @@ class HttpHeaderUtils
             |
                 # separator
                 \s*
-                (?<separator>['.$quotedSeparators.'])
+                '//(?<separator>['.$quotedSeparators.'])
+                .'(['.$quotedSeparators.'])
                 \s*
             /x', trim($header), $matches, PREG_SET_ORDER);
 
@@ -459,29 +574,133 @@ class HttpHeaderUtils
         return preg_replace('/\\\\(.)|"/', '$1', $s);
     }
 
-    private static function groupParts(/*array*/ $matches, /*string*/ $separators)/*: array*/
+    public static function makeDisposition(/*string*/ $disposition, /*string*/ $filename, /*string*/ $filenameFallback = '')/*: string*/
     {
-        $separator = $separators[0];
-        $partSeparators = substr($separators, 1);
+        if (!in_array($disposition, array('attachment', 'inline'))) {
+            throw new \InvalidArgumentException(\sprintf('The disposition must be either "%s" or "%s".', 'attachment', 'inline'));
+        }
 
+        if ('' === $filenameFallback) {
+            $filenameFallback = $filename;
+        }
+
+        // filenameFallback is not ASCII.
+        if (!preg_match('/^[\x20-\x7e]*$/', $filenameFallback)) {
+            throw new \InvalidArgumentException('The filename fallback must only contain ASCII characters.');
+        }
+
+        // percent characters aren't safe in fallback.
+        if (false !== strpos($filenameFallback, '%')) {
+            throw new \InvalidArgumentException('The filename fallback cannot contain the "%" character.');
+        }
+
+        // path separators aren't allowed in either.
+        if (false !== strpos($filename, '/') || false !== strpos($filename, '\\') || false !== strpos($filenameFallback, '/') || false !== strpos($filenameFallback, '\\')) {
+            throw new \InvalidArgumentException('The filename and the fallback cannot contain the "/" and "\\" characters.');
+        }
+
+        $params = array('filename' => $filenameFallback);
+        if ($filename !== $filenameFallback) {
+            $params['filename*'] = "utf-8''".rawurlencode($filename);
+        }
+
+        return $disposition.'; '.self::toString($params, ';');
+    }
+
+    public static function parseQuery(/*string*/ $query, /*bool*/ $ignoreBrackets = false, /*string*/ $separator = '&')/*: array*/
+    {
+        $q = array();
+
+        $arr = explode($separator, $query);
+        foreach ($arr as $v) {
+            if (false !== $i = strpos($v, "\0")) {
+                $v = substr($v, 0, $i);
+            }
+
+            if (false === $i = strpos($v, '=')) {
+                $k = urldecode($v);
+                $v = '';
+            } else {
+                $k = urldecode(substr($v, 0, $i));
+                $v = substr($v, $i);
+            }
+
+            if (false !== $i = strpos($k, "\0")) {
+                $k = substr($k, 0, $i);
+            }
+
+            $k = ltrim($k, ' ');
+
+            if ($ignoreBrackets) {
+                $q[$k][] = urldecode(substr($v, 1));
+
+                continue;
+            }
+
+            if (false === $i = strpos($k, '[')) {
+                $q[] = bin2hex($k).$v;
+            } else {
+                $q[] = bin2hex(substr($k, 0, $i)).rawurlencode(substr($k, $i)).$v;
+            }
+        }
+
+        if ($ignoreBrackets) {
+            return $q;
+        }
+
+        parse_str(implode('&', $q), $q);
+
+        $query = array();
+
+        foreach ($q as $k => $v) {
+            if (false !== $i = strpos($k, '_')) {
+                $query[substr_replace($k, hex2bin(substr($k, 0, $i)).'[', 0, 1 + $i)] = $v;
+            } else {
+                $query[hex2bin($k)] = $v;
+            }
+        }
+
+        return $query;
+    }
+
+    private static function groupParts(/*array*/ $matches, /*string*/ $separators, /*bool*/ $first = true)/*: array*/
+    {
+        $separator = substr($separators, 0, 1);
+        $separators = substr($separators, 1);
         $i = 0;
+
+        if ('' === $separators && !$first) {
+            $parts = array('');
+
+            foreach ($matches as $match) {
+                if (!$i && isset($match[1/*'separator'*/])) {
+                    $i = 1;
+                    $parts[1] = '';
+                } else {
+                    $parts[$i] .= self::unquote($match[0]);
+                }
+            }
+
+            return $parts;
+        }
+
+        $parts = array();
         $partMatches = array();
+
         foreach ($matches as $match) {
-            if (isset($match['separator']) && $match['separator'] === $separator) {
+            if ((isset($match[1/*'separator'*/]) && $match[1/*'separator'*/] === $separator) || (!isset($match[1/*'separator'*/]) && '' === $separator)) {
                 ++$i;
             } else {
+                if (!isset($partMatches[$i])) $partMatches[$i] = array();
                 $partMatches[$i][] = $match;
             }
         }
 
-        $parts = array();
-        if ($partSeparators) {
-            foreach ($partMatches as $matches) {
-                $parts[] = self::groupParts($matches, $partSeparators);
-            }
-        } else {
-            foreach ($partMatches as $matches) {
-                $parts[] = self::unquote($matches[0][0]);
+        foreach ($partMatches as $matches) {
+            if ('' === $separators && '' !== $unquoted = self::unquote($matches[0][0])) {
+                $parts[] = $unquoted;
+            } elseif ($groupedParts = self::groupParts($matches, $separators, false)) {
+                $parts[] = $groupedParts;
             }
         }
 
@@ -504,14 +723,18 @@ class HttpAcceptHeader
 
     public static function fromString($headerValue)
     {
-        $index = 0;
+        $parts = HttpHeaderUtils::split(isset($headerValue) ? $headerValue : '', ',;=');
 
-        return new self(array_map(function ($itemValue) use (&$index) {
-            $item = HttpAcceptHeaderItem::fromString($itemValue);
+        return new self(array_map(function ($subParts) {
+            static $index = 0;
+            $part = array_shift($subParts);
+            $attributes = HttpHeaderUtils::combine($subParts);
+
+            $item = new HttpAcceptHeaderItem($part[0], $attributes);
             $item->setIndex($index++);
 
             return $item;
-        }, preg_split('/\s*(?:,*("[^"]+"),*|,*(\'[^\']+\'),*|,+)\s*/', $headerValue, 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE)));
+        }, $parts));
     }
 
     public function __toString()
@@ -526,7 +749,13 @@ class HttpAcceptHeader
 
     public function get($value)
     {
-        return isset($this->items[$value]) ? $this->items[$value] : null;
+        if (isset($this->items[$value])) return $this->items[$value];
+        $vs = explode('/', $value);
+        $v = $vs[0].'/*';
+        if (isset($this->items[$v])) return $this->items[$v];
+        if (isset($this->items['*/*'])) return $this->items['*/*'];
+        if (isset($this->items['*'])) return $this->items['*'];
+        return null;
     }
 
     public function add(/*HttpAcceptHeaderItem*/ $item)
@@ -594,33 +823,19 @@ class HttpAcceptHeaderItem
 
     public static function fromString($itemValue)
     {
-        $bits = preg_split('/\s*(?:;*("[^"]+");*|;*(\'[^\']+\');*|;+)\s*/', $itemValue, 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
-        $value = array_shift($bits);
-        $attributes = array();
+        $parts = HttpHeaderUtils::split(isset($itemValue) ? $itemValue : '', ';=');
 
-        $lastNullAttribute = null;
-        foreach ($bits as $bit) {
-            if (($start = substr($bit, 0, 1)) === ($end = substr($bit, -1)) && ('"' === $start || '\'' === $start)) {
-                $attributes[$lastNullAttribute] = substr($bit, 1, -1);
-            } elseif ('=' === $end) {
-                $lastNullAttribute = $bit = substr($bit, 0, -1);
-                $attributes[$bit] = null;
-            } else {
-                $parts = explode('=', $bit);
-                $attributes[$parts[0]] = isset($parts[1]) && strlen($parts[1]) > 0 ? $parts[1] : '';
-            }
-        }
+        $part = array_shift($parts);
+        $attributes = HttpHeaderUtils::combine($parts);
 
-        return new self(($start = substr($value, 0, 1)) === ($end = substr($value, -1)) && ('"' === $start || '\'' === $start) ? substr($value, 1, -1) : $value, $attributes);
+        return new self($part[0], $attributes);
     }
 
     public function __toString()
     {
         $string = $this->value.($this->quality < 1 ? ';q='.$this->quality : '');
         if (count($this->attributes) > 0) {
-            $string .= ';'.implode(';', array_map(function ($name, $value) {
-                return sprintf(preg_match('/[,;=]/', $value) ? '%s="%s"' : '%s=%s', $name, $value);
-            }, array_keys($this->attributes), $this->attributes));
+            $string .= '; '.HttpHeaderUtils::toString($this->attributes, ';');
         }
 
         return $string;
@@ -691,13 +906,15 @@ class HttpAcceptHeaderItem
 
 class HttpRequest
 {
-    const HEADER_FORWARDED = 0b00001; // When using RFC 7239
-    const HEADER_X_FORWARDED_FOR = 0b00010;
-    const HEADER_X_FORWARDED_HOST = 0b00100;
-    const HEADER_X_FORWARDED_PROTO = 0b01000;
-    const HEADER_X_FORWARDED_PORT = 0b10000;
-    const HEADER_X_FORWARDED_ALL = 0b11110; // All "X-Forwarded-*" headers
-    const HEADER_X_FORWARDED_AWS_ELB = 0b11010; // AWS ELB doesn't send X-Forwarded-Host
+    const HEADER_FORWARDED = 0b000001; // When using RFC 7239
+    const HEADER_X_FORWARDED_FOR = 0b000010;
+    const HEADER_X_FORWARDED_HOST = 0b000100;
+    const HEADER_X_FORWARDED_PROTO = 0b001000;
+    const HEADER_X_FORWARDED_PORT = 0b010000;
+    const HEADER_X_FORWARDED_PREFIX = 0b100000;
+
+    const HEADER_X_FORWARDED_AWS_ELB = 0b0011010; // AWS ELB doesn't send X-Forwarded-Host
+    const HEADER_X_FORWARDED_TRAEFIK = 0b0111110; // All "X-Forwarded-*" headers sent by Traefik reverse proxy
 
     const METHOD_HEAD = 'HEAD';
     const METHOD_GET = 'GET';
@@ -723,6 +940,7 @@ class HttpRequest
     public $request;
 
     public $query;
+    public $queryci;
 
     public $server;
 
@@ -764,8 +982,12 @@ class HttpRequest
 
     protected static $requestFactory;
 
+    private $preferredFormat = null;
     private $isHostValid = true;
     private $isForwardedValid = true;
+    private $isSafeContentPreferred;
+
+    private $trustedValuesCache = array();
 
     private static $trustedHeaderSet = -1;
 
@@ -782,7 +1004,19 @@ class HttpRequest
         self::HEADER_X_FORWARDED_HOST => 'X_FORWARDED_HOST',
         self::HEADER_X_FORWARDED_PROTO => 'X_FORWARDED_PROTO',
         self::HEADER_X_FORWARDED_PORT => 'X_FORWARDED_PORT',
+        self::HEADER_X_FORWARDED_PREFIX => 'X_FORWARDED_PREFIX',
     );
+
+    private $isIisRewrite = false;
+
+    public static function queryCI($query)
+    {
+        $queryci = array();
+        foreach ($query as $key => $val) {
+            $queryci[strtolower($key)] = $val;
+        }
+        return $queryci;
+    }
 
     public function __construct(/*array*/ $query = array(), /*array*/ $request = array(), /*array*/ $attributes = array(), /*array*/ $cookies = array(), /*array*/ $files = array(), /*array*/ $server = array(), $content = null)
     {
@@ -793,6 +1027,7 @@ class HttpRequest
     {
         $this->request = new ParameterBag($request);
         $this->query = new ParameterBag($query);
+        $this->queryci = new ParameterBag(self::queryCI($query));
         $this->attributes = new ParameterBag($attributes);
         $this->cookies = new ParameterBag($cookies);
         $this->files = new HttpFileBag($files);
@@ -842,12 +1077,14 @@ class HttpRequest
             'SCRIPT_FILENAME' => '',
             'SERVER_PROTOCOL' => 'HTTP/1.1',
             'REQUEST_TIME' => time(),
+            'REQUEST_TIME_FLOAT' => microtime(true),
         ), $server);
 
         $server['PATH_INFO'] = '';
         $server['REQUEST_METHOD'] = strtoupper($method);
 
-        $components = parse_url($uri);
+        $components = parse_url(strlen($uri) !== strcspn($uri, '?#') ? $uri : $uri.'#');
+
         if (isset($components['host'])) {
             $server['SERVER_NAME'] = $components['host'];
             $server['HTTP_HOST'] = $components['host'];
@@ -865,7 +1102,7 @@ class HttpRequest
 
         if (isset($components['port'])) {
             $server['SERVER_PORT'] = $components['port'];
-            $server['HTTP_HOST'] = $server['HTTP_HOST'].':'.$components['port'];
+            $server['HTTP_HOST'] .= ':'.$components['port'];
         }
 
         if (isset($components['user'])) {
@@ -929,6 +1166,7 @@ class HttpRequest
         $dup = clone $this;
         if (null !== $query) {
             $dup->query = new ParameterBag($query);
+            $dup->queryci = new ParameterBag(self::queryCI($query));
         }
         if (null !== $request) {
             $dup->request = new ParameterBag($request);
@@ -971,6 +1209,7 @@ class HttpRequest
     public function __clone()
     {
         $this->query = clone $this->query;
+        $this->queryci = clone $this->queryci;
         $this->request = clone $this->request;
         $this->attributes = clone $this->attributes;
         $this->cookies = clone $this->cookies;
@@ -981,17 +1220,22 @@ class HttpRequest
 
     public function __toString()
     {
-        try {
-            $content = $this->getContent();
-        } catch (\LogicException $e) {
-            return trigger_error($e, E_USER_ERROR);
-        }
+        $content = $this->getContent();
 
         $cookieHeader = '';
         $cookies = array();
 
         foreach ($this->cookies as $k => $v) {
-            $cookies[] = $k.'='.$v;
+            if (is_array($v))
+            {
+                $params = array();
+                $params[$k] = $v;
+                $cookies[] = http_build_query($params, '', '; ', PHP_QUERY_RFC3986);
+            }
+            else
+            {
+                $cookies[] = "{$k}={$v}";
+            }
         }
 
         if (!empty($cookies)) {
@@ -1016,7 +1260,7 @@ class HttpRequest
 
         foreach ($this->headers->all() as $key => $value) {
             $key = strtoupper(str_replace('-', '_', $key));
-            if (in_array($key, array('CONTENT_TYPE', 'CONTENT_LENGTH'))) {
+            if (in_array($key, array('CONTENT_TYPE', 'CONTENT_LENGTH'), true)) {
                 $_SERVER[$key] = implode(', ', $value);
             } else {
                 $_SERVER['HTTP_'.$key] = implode(', ', $value);
@@ -1038,6 +1282,20 @@ class HttpRequest
 
     public static function setTrustedProxies(/*array*/ $proxies, /*int*/ $trustedHeaderSet)
     {
+        if (false !== $i = array_search('REMOTE_ADDR', $proxies, true)) {
+            if (isset($_SERVER['REMOTE_ADDR'])) {
+                $proxies[$i] = $_SERVER['REMOTE_ADDR'];
+            } else {
+                unset($proxies[$i]);
+                $proxies = array_values($proxies);
+            }
+        }
+
+        if (false !== ($i = array_search('PRIVATE_SUBNETS', $proxies, true)) || false !== ($i = array_search('private_ranges', $proxies, true))) {
+            unset($proxies[$i]);
+            $proxies = array_merge($proxies, HttpIpUtils::PRIVATE_SUBNETS);
+        }
+
         self::$trustedProxies = $proxies;
         self::$trustedHeaderSet = $trustedHeaderSet;
     }
@@ -1068,35 +1326,15 @@ class HttpRequest
 
     public static function normalizeQueryString($qs)
     {
-        if ('' == $qs) {
+        $qs = isset($qs) ? $qs : '';
+        if ('' === $qs) {
             return '';
         }
 
-        $parts = array();
-        $order = array();
+        $qs = HttpHeaderUtils::parseQuery($qs);
+        ksort($qs);
 
-        foreach (explode('&', $qs) as $param) {
-            if ('' === $param || '=' === $param[0]) {
-                // Ignore useless delimiters, e.g. "x=y&".
-                // Also ignore pairs with empty key, even if there was a value, e.g. "=value", as such nameless values cannot be retrieved anyway.
-                // PHP also does not include them when building _GET.
-                continue;
-            }
-
-            $keyValuePair = explode('=', $param, 2);
-
-            // GET parameters, that are submitted from a HTML form, encode spaces as "+" by default (as defined in enctype application/x-www-form-urlencoded).
-            // PHP also converts "+" to spaces when filling the global _GET or when using the function parse_str. This is why we use urldecode and then normalize to
-            // RFC 3986 with rawurlencode.
-            $parts[] = isset($keyValuePair[1]) ?
-                rawurlencode(urldecode($keyValuePair[0])).'='.rawurlencode(urldecode($keyValuePair[1])) :
-                rawurlencode(urldecode($keyValuePair[0]));
-            $order[] = urldecode($keyValuePair[0]);
-        }
-
-        array_multisort($order, SORT_ASC, $parts);
-
-        return implode('&', $parts);
+        return http_build_query($qs, '', '&', PHP_QUERY_RFC3986);
     }
 
     public static function enableHttpMethodParameterOverride()
@@ -1111,15 +1349,15 @@ class HttpRequest
 
     public function get($key, $default = null)
     {
-        if ($this !== $result = $this->attributes->get($key, $this)) {
+        if ($this !== ($result = $this->attributes->get($key, $this))) {
             return $result;
         }
 
-        if ($this !== $result = $this->query->get($key, $this)) {
+        if ($this !== ($result = $this->query->get($key, $this))) {
             return $result;
         }
 
-        if ($this !== $result = $this->request->get($key, $this)) {
+        if ($this !== ($result = $this->request->get($key, $this))) {
             return $result;
         }
 
@@ -1191,6 +1429,18 @@ class HttpRequest
 
     public function getBaseUrl()
     {
+        $trustedPrefix = '';
+
+        // the proxy prefix must be prepended to any prefix being needed at the webserver level
+        if ($this->isFromTrustedProxy() && $trustedPrefixValues = $this->getTrustedValues(self::HEADER_X_FORWARDED_PREFIX)) {
+            $trustedPrefix = rtrim($trustedPrefixValues[0], '/');
+        }
+
+        return $trustedPrefix.$this->getBaseUrlReal();
+    }
+
+    private function getBaseUrlReal()
+    {
         if (null === $this->baseUrl) {
             $this->baseUrl = $this->prepareBaseUrl();
         }
@@ -1207,9 +1457,9 @@ class HttpRequest
     {
         if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_PORT)) {
             $host = $host[0];
-        } elseif ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_HOST)) {
+        } elseif ($this->isFromTrustedProxy() && !empty($host = $this->getTrustedValues(self::HEADER_X_FORWARDED_HOST))) {
             $host = $host[0];
-        } elseif (!$host = $this->headers->get('HOST')) {
+        } elseif (empty($host = $this->headers->get('HOST'))) {
             return $this->server->get('SERVER_PORT');
         }
 
@@ -1274,10 +1524,10 @@ class HttpRequest
         return $this->getScheme().'://'.$this->getHttpHost();
     }
 
-    public function getUri( $withQS=true )
+    public function getUri($withQS = true)
     {
-        if ( $withQS ) {
-            if ( null !== $qs = $this->getQueryString()) {
+        if ($withQS) {
+            if (null !== ($qs = $this->getQueryString())) {
                 $qs = '?'.$qs;
             }
         } else {
@@ -1350,8 +1600,8 @@ class HttpRequest
     {
         if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_HOST)) {
             $host = $host[0];
-        } elseif (!$host = $this->headers->get('HOST')) {
-            if (!$host = $this->server->get('SERVER_NAME')) {
+        } elseif (empty($host = $this->headers->get('HOST'))) {
+            if (empty($host = $this->server->get('SERVER_NAME'))) {
                 $host = $this->server->get('SERVER_ADDR', '');
             }
         }
@@ -1404,21 +1654,39 @@ class HttpRequest
         $this->server->set('REQUEST_METHOD', $method);
     }
 
-    public function getMethod( $default='GET' )
+    public function getMethod($default = 'GET')
     {
-        if (null === $this->method) {
-            $this->method = strtoupper($this->server->get('REQUEST_METHOD', $default));
-
-            if ('POST' === $this->method) {
-                if ($method = $this->headers->get('X-HTTP-METHOD-OVERRIDE')) {
-                    $this->method = strtoupper($method);
-                } elseif (self::$httpMethodParameterOverride) {
-                    $this->method = strtoupper($this->request->get('_method', $this->query->get('_method', 'POST')));
-                }
-            }
+        if (null !== $this->method) {
+            return $this->method;
         }
 
-        return $this->method;
+        $this->method = strtoupper($this->server->get('REQUEST_METHOD', $default));
+
+        if ('POST' !== $this->method) {
+            return $this->method;
+        }
+
+        $method = $this->headers->get('X-HTTP-METHOD-OVERRIDE');
+
+        if (!$method && self::$httpMethodParameterOverride) {
+            $method = $this->request->get('_method', $this->query->get('_method', 'POST'));
+        }
+
+        if (!is_string($method)) {
+            return $this->method;
+        }
+
+        $method = strtoupper($method);
+
+        if (in_array($method, array('GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'PATCH', 'PURGE', 'TRACE'), true)) {
+            return $this->method = $method;
+        }
+
+        if (!preg_match('/^[A-Z]++$/D', $method)) {
+            throw new /*SuspiciousOperation*/\Exception('Invalid HTTP method override.');
+        }
+
+        return $this->method = $method;
     }
 
     public function getRealMethod()
@@ -1447,8 +1715,8 @@ class HttpRequest
     public function getFormat($mimeType)
     {
         $canonicalMimeType = null;
-        if (false !== $pos = strpos($mimeType, ';')) {
-            $canonicalMimeType = substr($mimeType, 0, $pos);
+        if ($mimeType && false !== ($pos = strpos($mimeType, ';'))) {
+            $canonicalMimeType = trim(substr($mimeType, 0, $pos));
         }
 
         if (null === self::$formats) {
@@ -1456,13 +1724,15 @@ class HttpRequest
         }
 
         foreach (self::$formats as $format => $mimeTypes) {
-            if (in_array($mimeType, (array) $mimeTypes)) {
+            if (in_array($mimeType, (array) $mimeTypes, true)) {
                 return $format;
             }
-            if (null !== $canonicalMimeType && in_array($canonicalMimeType, (array) $mimeTypes)) {
+            if (null !== $canonicalMimeType && in_array($canonicalMimeType, (array) $mimeTypes, true)) {
                 return $format;
             }
         }
+
+        return null;
     }
 
     public function setFormat($format, $mimeTypes)
@@ -1488,9 +1758,9 @@ class HttpRequest
         $this->format = $format;
     }
 
-    public function getContentType()
+    public function getContentTypeFormat()
     {
-        return $this->getFormat($this->headers->get('CONTENT_TYPE'));
+        return $this->getFormat($this->headers->get('CONTENT_TYPE', ''));
     }
 
     public function setDefaultLocale($locale)
@@ -1522,13 +1792,8 @@ class HttpRequest
         return $this->getMethod() === strtoupper($method);
     }
 
-    public function isMethodSafe(/* $andCacheable = true */)
+    public function isMethodSafe()
     {
-        if (!func_num_args() || func_get_arg(0)) {
-            // setting $andCacheable to false should be deprecated in 4.1
-            throw new \BadMethodCallException('Checking only for cacheable HTTP methods with Symfony\Component\HttpFoundation\HttpRequest::isMethodSafe() is not supported.');
-        }
-
         return in_array($this->getMethod(), array('GET', 'HEAD', 'OPTIONS', 'TRACE'));
     }
 
@@ -1593,6 +1858,40 @@ class HttpRequest
         return $this->content;
     }
 
+    public function getPayload()
+    {
+        if ($this->request->count()) {
+            return clone $this->request;
+        }
+
+        if ('' === $content = $this->getContent()) {
+            return new ParameterBag(array());
+        }
+
+        $content = json_decode($content, true, 512);
+
+        if (!is_array($content)) {
+            throw new \JsonException(sprintf('JSON content was expected to decode to an array, "%s" returned.', get_debug_type($content)));
+        }
+
+        return new ParameterBag($content);
+    }
+
+    public function toArray()
+    {
+        if ('' === $content = $this->getContent()) {
+            throw new \JsonException('Request body is empty.');
+        }
+
+        $content = json_decode($content, true, 512);
+
+        if (!is_array($content)) {
+            throw new \JsonException(\sprintf('JSON content was expected to decode to an array, "%s" returned.', get_debug_type($content)));
+        }
+
+        return $content;
+    }
+
     public function getETags()
     {
         return preg_split('/\s*,\s*/', $this->headers->get('if_none_match'), null, PREG_SPLIT_NO_EMPTY);
@@ -1603,6 +1902,25 @@ class HttpRequest
         return $this->headers->hasCacheControlDirective('no-cache') || 'no-cache' == $this->headers->get('Pragma');
     }
 
+    public function getPreferredFormat($default = 'html')
+    {
+        if (!isset($this->preferredFormat) && null !== $preferredFormat = $this->getRequestFormat(null)) {
+            $this->preferredFormat = $preferredFormat;
+        }
+
+        if ($this->preferredFormat) {
+            return $this->preferredFormat;
+        }
+
+        foreach ($this->getAcceptableContentTypes() as $mimeType) {
+            if ($this->preferredFormat = $this->getFormat($mimeType)) {
+                return $this->preferredFormat;
+            }
+        }
+
+        return $default;
+    }
+
     public function getPreferredLanguage(/*array*/ $locales = null)
     {
         $preferredLanguages = $this->getLanguages();
@@ -1611,24 +1929,24 @@ class HttpRequest
             return isset($preferredLanguages[0]) ? $preferredLanguages[0] : null;
         }
 
-        if (!$preferredLanguages) {
+        $locales = array_map(array($this, 'formatLocale'), $locales);
+        if (empty($preferredLanguages)) {
             return $locales[0];
         }
 
-        $extendedPreferredLanguages = array();
-        foreach ($preferredLanguages as $language) {
-            $extendedPreferredLanguages[] = $language;
-            if (false !== $position = strpos($language, '_')) {
-                $superLanguage = substr($language, 0, $position);
-                if (!in_array($superLanguage, $preferredLanguages)) {
-                    $extendedPreferredLanguages[] = $superLanguage;
+        $combinations = array();
+        foreach ($preferredLanguages as $pl) {
+            $combinations = array_merge($combinations, $this->getLanguageCombinations($pl));
+        }
+        foreach ($combinations as $combination) {
+            foreach ($locales as $locale) {
+                if (0 === strpos($locale, $combination)) {
+                    return $locale;
                 }
             }
         }
 
-        $preferredLanguages = array_values(array_intersect($extendedPreferredLanguages, $locales));
-
-        return isset($preferredLanguages[0]) ? $preferredLanguages[0] : $locales[0];
+        return $locales[0];
     }
 
     public function getLanguages()
@@ -1639,31 +1957,53 @@ class HttpRequest
 
         $languages = HttpAcceptHeader::fromString($this->headers->get('Accept-Language'))->all();
         $this->languages = array();
-        foreach ($languages as $lang => $acceptHeaderItem) {
-            if (false !== strpos($lang, '-')) {
-                $codes = explode('-', $lang);
-                if ('i' === $codes[0]) {
-                    // Language not listed in ISO 639 that are not variants
-                    // of any listed language, which can be registered with the
-                    // i-prefix, such as i-cherokee
-                    if (count($codes) > 1) {
-                        $lang = $codes[1];
-                    }
-                } else {
-                    for ($i = 0, $max = count($codes); $i < $max; ++$i) {
-                        if (0 == $i) {
-                            $lang = strtolower($codes[0]);
-                        } else {
-                            $lang .= '_'.strtoupper($codes[$i]);
-                        }
-                    }
-                }
-            }
-
-            $this->languages[] = $lang;
+        foreach ($languages as $acceptHeaderItem) {
+            $lang = $acceptHeaderItem->getValue();
+            $this->languages[] = self::formatLocale($lang);
         }
+        $this->languages = array_unique($this->languages);
 
         return $this->languages;
+    }
+
+    private static function formatLocale($locale)
+    {
+        list($language, $script, $region) = self::getLanguageComponents($locale);
+
+        return implode('_', array_filter(array($language, $script, $region)));
+    }
+
+    private static function getLanguageCombinations($locale)
+    {
+        list($language, $script, $region) = self::getLanguageComponents($locale);
+
+        return array_unique(array(
+            implode('_', array_filter(array($language, $script, $region))),
+            implode('_', array_filter(array($language, $script))),
+            implode('_', array_filter(array($language, $region))),
+            $language,
+        ));
+    }
+
+    private static function getLanguageComponents($locale)
+    {
+        $locale = str_replace('_', '-', strtolower($locale));
+        $pattern = '/^([a-zA-Z]{2,3}|i-[a-zA-Z]{5,})(?:-([a-zA-Z]{4}))?(?:-([a-zA-Z]{2}))?(?:-(.+))?$/';
+        if (!preg_match($pattern, $locale, $matches)) {
+            return array($locale, null, null);
+        }
+        if (0 === strpos($matches[1], 'i-')) {
+            // Language not listed in ISO 639 that are not variants
+            // of any listed language, which can be registered with the
+            // i-prefix, such as i-cherokee
+            $matches[1] = substr($matches[1], 2);
+        }
+
+        return array(
+            $matches[1],
+            isset($matches[2]) ? ucfirst(strtolower($matches[2])) : null,
+            isset($matches[3]) ? strtoupper($matches[3]) : null,
+        );
     }
 
     public function getCharsets()
@@ -1672,7 +2012,7 @@ class HttpRequest
             return $this->charsets;
         }
 
-        return $this->charsets = array_keys(HttpAcceptHeader::fromString($this->headers->get('Accept-Charset'))->all());
+        return $this->charsets = array_map('strval', array_keys(HttpAcceptHeader::fromString($this->headers->get('Accept-Charset'))->all()));
     }
 
     public function getEncodings()
@@ -1681,7 +2021,7 @@ class HttpRequest
             return $this->encodings;
         }
 
-        return $this->encodings = array_keys(HttpAcceptHeader::fromString($this->headers->get('Accept-Encoding'))->all());
+        return $this->encodings = array_map('strval', array_keys(HttpAcceptHeader::fromString($this->headers->get('Accept-Encoding'))->all()));
     }
 
     public function getAcceptableContentTypes()
@@ -1690,7 +2030,7 @@ class HttpRequest
             return $this->acceptableContentTypes;
         }
 
-        return $this->acceptableContentTypes = array_keys(HttpAcceptHeader::fromString($this->headers->get('Accept'))->all());
+        return $this->acceptableContentTypes = array_map('strval', array_keys(HttpAcceptHeader::fromString($this->headers->get('Accept'))->all()));
     }
 
     public function isXmlHttpRequest()
@@ -1698,32 +2038,48 @@ class HttpRequest
         return 'xmlhttprequest' == strtolower($this->headers->get('X-Requested-With', ''));
     }
 
+    public function preferSafeContent(): bool
+    {
+        if (isset($this->isSafeContentPreferred)) {
+            return $this->isSafeContentPreferred;
+        }
+
+        if (!$this->isSecure()) {
+            // see https://tools.ietf.org/html/rfc8674#section-3
+            return $this->isSafeContentPreferred = false;
+        }
+
+        return $this->isSafeContentPreferred = HttpAcceptHeader::fromString($this->headers->get('Prefer'))->has('safe');
+    }
+
     protected function prepareRequestUri()
     {
         $requestUri = '';
 
-        if ($this->headers->has('X_ORIGINAL_URL')) {
-            // IIS with Microsoft Rewrite Module
-            $requestUri = $this->headers->get('X_ORIGINAL_URL');
-            $this->headers->remove('X_ORIGINAL_URL');
-            $this->server->remove('HTTP_X_ORIGINAL_URL');
-            $this->server->remove('UNENCODED_URL');
-            $this->server->remove('IIS_WasUrlRewritten');
-        } elseif ($this->headers->has('X_REWRITE_URL')) {
-            // IIS with ISAPI_Rewrite
-            $requestUri = $this->headers->get('X_REWRITE_URL');
-            $this->headers->remove('X_REWRITE_URL');
-        } elseif ('1' == $this->server->get('IIS_WasUrlRewritten') && '' != $this->server->get('UNENCODED_URL')) {
+        if ($this->isIisRewrite() && '' != $this->server->get('UNENCODED_URL')) {
             // IIS7 with URL Rewrite: make sure we get the unencoded URL (double slash problem)
             $requestUri = $this->server->get('UNENCODED_URL');
             $this->server->remove('UNENCODED_URL');
-            $this->server->remove('IIS_WasUrlRewritten');
         } elseif ($this->server->has('REQUEST_URI')) {
             $requestUri = $this->server->get('REQUEST_URI');
-            // HTTP proxy reqs setup request URI with scheme and host [and port] + the URL path, only use URL path
-            $schemeAndHttpHost = $this->getSchemeAndHttpHost();
-            if (0 === strpos($requestUri, $schemeAndHttpHost)) {
-                $requestUri = substr($requestUri, strlen($schemeAndHttpHost));
+
+            if ('' !== $requestUri && '/' === $requestUri[0]) {
+                // To only use path and query remove the fragment.
+                if (false !== $pos = strpos($requestUri, '#')) {
+                    $requestUri = substr($requestUri, 0, $pos);
+                }
+            } else {
+                // HTTP proxy reqs setup request URI with scheme and host [and port] + the URL path,
+                // only use URL path.
+                $uriComponents = parse_url($requestUri);
+
+                if (isset($uriComponents['path'])) {
+                    $requestUri = $uriComponents['path'];
+                }
+
+                if (isset($uriComponents['query'])) {
+                    $requestUri .= '?'.$uriComponents['query'];
+                }
             }
         } elseif ($this->server->has('ORIG_PATH_INFO')) {
             // IIS 5.0, PHP as CGI
@@ -1742,13 +2098,13 @@ class HttpRequest
 
     protected function prepareBaseUrl()
     {
-        $filename = basename($this->server->get('SCRIPT_FILENAME'));
+        $filename = basename($this->server->get('SCRIPT_FILENAME', ''));
 
-        if (basename($this->server->get('SCRIPT_NAME')) === $filename) {
+        if (basename($this->server->get('SCRIPT_NAME', '')) === $filename) {
             $baseUrl = $this->server->get('SCRIPT_NAME');
-        } elseif (basename($this->server->get('PHP_SELF')) === $filename) {
+        } elseif (basename($this->server->get('PHP_SELF', '')) === $filename) {
             $baseUrl = $this->server->get('PHP_SELF');
-        } elseif (basename($this->server->get('ORIG_SCRIPT_NAME')) === $filename) {
+        } elseif (basename($this->server->get('ORIG_SCRIPT_NAME', '')) === $filename) {
             $baseUrl = $this->server->get('ORIG_SCRIPT_NAME'); // 1and1 shared hosting compatibility
         } else {
             // Backtrack up the script_filename to find the portion matching
@@ -1758,7 +2114,7 @@ class HttpRequest
             $segs = explode('/', trim($file, '/'));
             $segs = array_reverse($segs);
             $index = 0;
-            $last = count($segs);
+            $last = \count($segs);
             $baseUrl = '';
             do {
                 $seg = $segs[$index];
@@ -1773,12 +2129,12 @@ class HttpRequest
             $requestUri = '/'.$requestUri;
         }
 
-        if ($baseUrl && false !== $prefix = $this->getUrlencodedPrefix($requestUri, $baseUrl)) {
+        if ($baseUrl && null !== $prefix = $this->getUrlencodedPrefix($requestUri, $baseUrl)) {
             // full $baseUrl matches
             return $prefix;
         }
 
-        if ($baseUrl && false !== $prefix = $this->getUrlencodedPrefix($requestUri, rtrim(dirname($baseUrl), '/'.DIRECTORY_SEPARATOR).'/')) {
+        if ($baseUrl && null !== $prefix = $this->getUrlencodedPrefix($requestUri, rtrim(dirname($baseUrl), '/'.DIRECTORY_SEPARATOR).'/')) {
             // directory portion of $baseUrl matches
             return rtrim($prefix, '/'.DIRECTORY_SEPARATOR);
         }
@@ -1788,8 +2144,8 @@ class HttpRequest
             $truncatedRequestUri = substr($requestUri, 0, $pos);
         }
 
-        $basename = basename($baseUrl);
-        if (empty($basename) || !strpos(rawurldecode($truncatedRequestUri), $basename)) {
+        $basename = basename(isset($baseUrl) ? $baseUrl : '');
+        if (!$basename || !strpos(rawurldecode($truncatedRequestUri), $basename)) {
             // no match whatsoever; set it blank
             return '';
         }
@@ -1807,13 +2163,13 @@ class HttpRequest
     protected function prepareBasePath()
     {
         $baseUrl = $this->getBaseUrl();
-        if (empty($baseUrl)) {
+        if (!$baseUrl) {
             return '';
         }
 
         $filename = basename($this->server->get('SCRIPT_FILENAME'));
         if (basename($baseUrl) === $filename) {
-            $basePath = dirname($baseUrl);
+            $basePath = \dirname($baseUrl);
         } else {
             $basePath = $baseUrl;
         }
@@ -1839,17 +2195,17 @@ class HttpRequest
             $requestUri = '/'.$requestUri;
         }
 
-        if (null === ($baseUrl = $this->getBaseUrl())) {
+        if (null === ($baseUrl = $this->getBaseUrlReal())) {
             return $requestUri;
         }
 
         $pathInfo = substr($requestUri, strlen($baseUrl));
-        if (false === $pathInfo || '' === $pathInfo) {
+        if ('' === $pathInfo) {
             // If substr() returns false then PATH_INFO is set to an empty string
             return '/';
         }
 
-        return (string) $pathInfo;
+        return $pathInfo;
     }
 
     protected static function initializeFormats()
@@ -1865,7 +2221,7 @@ class HttpRequest
             'rdf' => array('application/rdf+xml'),
             'atom' => array('application/atom+xml'),
             'rss' => array('application/rss+xml'),
-            'form' => array('application/x-www-form-urlencoded'),
+            'form' => array('application/x-www-form-urlencoded', 'multipart/form-data'),
         );
     }
 
@@ -1884,8 +2240,14 @@ class HttpRequest
 
     private function getUrlencodedPrefix(/*string*/ $string, /*string*/ $prefix)
     {
-        if (0 !== strpos(rawurldecode($string), $prefix)) {
-            return false;
+        if ($this->isIisRewrite()) {
+            // ISS with UrlRewriteModule might report SCRIPT_NAME/PHP_SELF with wrong case
+            // see https://github.com/php/php-src/issues/11981
+            if (0 !== stripos(rawurldecode($string), $prefix)) {
+                return null;
+            }
+        } elseif (false === strpos(rawurldecode($string), $prefix)) {
+            return null;
         }
 
         $len = strlen($prefix);
@@ -1894,7 +2256,7 @@ class HttpRequest
             return $match[0];
         }
 
-        return false;
+        return null;
     }
 
     private static function createRequestFromFactory(/*array*/ $query = array(), /*array*/ $request = array(), /*array*/ $attributes = array(), /*array*/ $cookies = array(), /*array*/ $files = array(), /*array*/ $server = array(), $content = null)
@@ -1903,7 +2265,7 @@ class HttpRequest
             $request = call_user_func(self::$requestFactory, $query, $request, $attributes, $cookies, $files, $server, $content);
 
             if (!$request instanceof self) {
-                throw new \LogicException('The HttpRequest factory must return an instance of Symfony\Component\HttpFoundation\HttpRequest.');
+                throw new \LogicException('The HttpRequest factory must return an instance of HttpRequest.');
             }
 
             return $request;
@@ -1919,18 +2281,41 @@ class HttpRequest
 
     private function getTrustedValues($type, $ip = null)
     {
+        $cacheKey = $type."\0".((self::$trustedHeaderSet & $type) ? $this->headers->get(self::TRUSTED_HEADERS[$type]) : '');
+        $cacheKey .= "\0".$ip."\0".$this->headers->get(self::TRUSTED_HEADERS[self::HEADER_FORWARDED]);
+
+        if (isset($this->trustedValuesCache[$cacheKey])) {
+            return $this->trustedValuesCache[$cacheKey];
+        }
+
         $clientValues = array();
         $forwardedValues = array();
 
-        if ((self::$trustedHeaderSet & $type) && $this->headers->has(self::$trustedHeaders[$type])) {
-            foreach (explode(',', $this->headers->get(self::$trustedHeaders[$type])) as $v) {
+        if ((self::$trustedHeaderSet & $type) && $this->headers->has(self::TRUSTED_HEADERS[$type])) {
+            $arr = explode(',', $this->headers->get(self::TRUSTED_HEADERS[$type]));
+            foreach ($arr as $v) {
                 $clientValues[] = (self::HEADER_X_FORWARDED_PORT === $type ? '0.0.0.0:' : '').trim($v);
             }
         }
 
-        if ((self::$trustedHeaderSet & self::HEADER_FORWARDED) && $this->headers->has(self::$trustedHeaders[self::HEADER_FORWARDED])) {
-            $forwardedValues = $this->headers->get(self::$trustedHeaders[self::HEADER_FORWARDED]);
-            $forwardedValues = preg_match_all(sprintf('{(?:%s)=(?:"?\[?)([a-zA-Z0-9\.:_\-/]*+)}', self::$forwardedParams[$type]), $forwardedValues, $matches) ? $matches[1] : array();
+        if ((self::$trustedHeaderSet & self::HEADER_FORWARDED) && (isset(self::FORWARDED_PARAMS[$type])) && $this->headers->has(self::TRUSTED_HEADERS[self::HEADER_FORWARDED])) {
+            $forwarded = $this->headers->get(self::TRUSTED_HEADERS[self::HEADER_FORWARDED]);
+            $parts = HttpHeaderUtils::split($forwarded, ',;=');
+            $param = self::FORWARDED_PARAMS[$type];
+            foreach ($parts as $subParts) {
+                $v = HttpHeaderUtils::combine($subParts)[$param];
+                $v = isset($v) ? $v : null;
+                if (null === $v) {
+                    continue;
+                }
+                if (self::HEADER_X_FORWARDED_PORT === $type) {
+                    if (']' === substr($v, -1, 1) || false === $v = strrchr($v, ':')) {
+                        $v = $this->isSecure() ? ':443' : ':80';
+                    }
+                    $v = '0.0.0.0'.$v;
+                }
+                $forwardedValues[] = $v;
+            }
         }
 
         if (null !== $ip) {
@@ -1938,35 +2323,42 @@ class HttpRequest
             $forwardedValues = $this->normalizeAndFilterClientIps($forwardedValues, $ip);
         }
 
-        if ($forwardedValues === $clientValues || !$clientValues) {
-            return $forwardedValues;
+        if ($forwardedValues === $clientValues || empty($clientValues)) {
+            return $this->trustedValuesCache[$cacheKey] = $forwardedValues;
         }
 
-        if (!$forwardedValues) {
-            return $clientValues;
+        if (empty($forwardedValues)) {
+            return $this->trustedValuesCache[$cacheKey] = $clientValues;
         }
 
         if (!$this->isForwardedValid) {
-            return null !== $ip ? array('0.0.0.0', $ip) : array();
+            return $this->trustedValuesCache[$cacheKey] = null !== $ip ? array('0.0.0.0', $ip) : array();
         }
         $this->isForwardedValid = false;
 
-        throw new /*ConflictingHeaders*/\Exception(sprintf('The request has both a trusted "%s" header and a trusted "%s" header, conflicting with each other. You should either configure your proxy to remove one of them, or configure your project to distrust the offending one.', self::$trustedHeaders[self::HEADER_FORWARDED], self::$trustedHeaders[$type]));
+        throw new /*ConflictingHeaders*/\Exception(sprintf('The request has both a trusted "%s" header and a trusted "%s" header, conflicting with each other. You should either configure your proxy to remove one of them, or configure your project to distrust the offending one.', self::TRUSTED_HEADERS[self::HEADER_FORWARDED], self::TRUSTED_HEADERS[$type]));
     }
 
     private function normalizeAndFilterClientIps(/*array*/ $clientIps, $ip)
     {
-        if (!$clientIps) {
+        if (empty($clientIps)) {
             return array();
         }
-
         $clientIps[] = $ip; // Complete the IP chain with the IP the request actually came from
         $firstTrustedIp = null;
 
         foreach ($clientIps as $key => $clientIp) {
-            // Remove port (unfortunately, it does happen)
-            if (preg_match('{((?:\d+\.){3}\d+)\:\d+}', $clientIp, $match)) {
-                $clientIps[$key] = $clientIp = $match[1];
+            if (strpos($clientIp, '.')) {
+                // Strip :port from IPv4 addresses. This is allowed in Forwarded
+                // and may occur in X-Forwarded-For.
+                $i = strpos($clientIp, ':');
+                if ($i) {
+                    $clientIps[$key] = $clientIp = substr($clientIp, 0, $i);
+                }
+            } elseif (0 === strpos($clientIp, '[')) {
+                // Strip brackets and :port from IPv6 addresses.
+                $i = strpos($clientIp, ']', 1);
+                $clientIps[$key] = $clientIp = substr($clientIp, 1, $i - 1);
             }
 
             if (!filter_var($clientIp, FILTER_VALIDATE_IP)) {
@@ -1979,14 +2371,22 @@ class HttpRequest
                 unset($clientIps[$key]);
 
                 // Fallback to this when the client IP falls into the range of trusted proxies
-                if (null === $firstTrustedIp) {
-                    $firstTrustedIp = $clientIp;
-                }
+                $firstTrustedIp = isset($firstTrustedIp) ? $firstTrustedIp : $clientIp;
             }
         }
 
         // Now the IP chain contains only untrusted proxies and the client IP
         return $clientIps ? array_reverse($clientIps) : array($firstTrustedIp);
+    }
+
+    private function isIisRewrite()
+    {
+        if (1 === $this->server->getInt('IIS_WasUrlRewritten')) {
+            $this->isIisRewrite = true;
+            $this->server->remove('IIS_WasUrlRewritten');
+        }
+
+        return $this->isIisRewrite;
     }
 }
 
@@ -1999,11 +2399,18 @@ class HttpCookie
     protected $path;
     protected $secure;
     protected $httpOnly;
+    private $partitioned;
     private $raw;
     private $sameSite;
+    private $secureDefault = false;
 
+    const SAMESITE_NONE = 'none';
     const SAMESITE_LAX = 'lax';
     const SAMESITE_STRICT = 'strict';
+
+    const RESERVED_CHARS_LIST = "=,; \t\r\n\v\f";
+    const RESERVED_CHARS_FROM = array('=', ',', ';', ' ', "\t", "\r", "\n", "\v", "\f");
+    const RESERVED_CHARS_TO = array('%3D', '%2C', '%3B', '%20', '%09', '%0D', '%0A', '%0B', '%0C');
 
     public static function fromString($cookie, $decode = false)
     {
@@ -2015,49 +2422,78 @@ class HttpCookie
             'httponly' => false,
             'raw' => !$decode,
             'samesite' => null,
+            'partitioned' => false,
         );
-        foreach (explode(';', $cookie) as $part) {
-            if (false === strpos($part, '=')) {
-                $key = trim($part);
-                $value = true;
-            } else {
-                list($key, $value) = explode('=', trim($part), 2);
-                $key = trim($key);
-                $value = trim($value);
-            }
-            if (!isset($data['name'])) {
-                $data['name'] = $decode ? urldecode($key) : $key;
-                $data['value'] = true === $value ? null : ($decode ? urldecode($value) : $value);
-                continue;
-            }
-            switch ($key = strtolower($key)) {
-                case 'name':
-                case 'value':
-                    break;
-                case 'max-age':
-                    $data['expires'] = time() + (int) $value;
-                    break;
-                default:
-                    $data[$key] = $value;
-                    break;
-            }
+        $parts = HttpHeaderUtils::split($cookie, ';=');
+        $part = array_shift($parts);
+
+        $name = $decode ? urldecode($part[0]) : $part[0];
+        $value = isset($part[1]) ? ($decode ? urldecode($part[1]) : $part[1]) : null;
+
+        $data = HttpHeaderUtils::combine($parts) + $data;
+        $data['expires'] = self::expiresTimestamp($data['expires']);
+
+        if (isset($data['max-age']) && ($data['max-age'] > 0 || $data['expires'] > time())) {
+            $data['expires'] = time() + (int) $data['max-age'];
         }
 
-        return new self($data['name'], $data['value'], $data['expires'], $data['path'], $data['domain'], $data['secure'], $data['httponly'], $data['raw'], $data['samesite']);
+        return new self($name, $value, $data['expires'], $data['path'], $data['domain'], $data['secure'], $data['httponly'], $data['raw'], $data['samesite'], $data['partitioned']);
     }
 
+    public static function create($name, $value = null, $expire = 0, $path = '/', $domain = null, $secure = null, $httpOnly = true, $raw = false, $sameSite = 'lax', $partitioned = false): self
+    {
+        return new self($name, $value, $expire, $path, $domain, $secure, $httpOnly, $raw, $sameSite, $partitioned);
+    }
 
-    public function __construct(/*string*/ $name, /*string*/ $value = null, $expire = 0, /*?string*/ $path = '/', /*string*/ $domain = null, /*bool*/ $secure = false, /*bool*/ $httpOnly = true, /*bool*/ $raw = false, /*string*/ $sameSite = null)
+    public function __construct(/*string*/ $name, /*string*/ $value = null, $expire = 0, /*?string*/ $path = '/', /*string*/ $domain = null, /*bool*/ $secure = false, /*bool*/ $httpOnly = true, /*bool*/ $raw = false, /*string*/ $sameSite = 'lax', /*bool*/ $partitioned = false)
     {
         // from PHP source code
-        if (preg_match("/[=,; \t\r\n\013\014]/", $name)) {
-            throw new \InvalidArgumentException(sprintf('The cookie name "%s" contains invalid characters.', $name));
+        if ($raw && false !== strpbrk($name, self::RESERVED_CHARS_LIST)) {
+            throw new \InvalidArgumentException(\sprintf('The cookie name "%s" contains invalid characters.', $name));
         }
 
-        if (empty($name)) {
+        if (!$name) {
             throw new \InvalidArgumentException('The cookie name cannot be empty.');
         }
 
+        $this->name = $name;
+        $this->value = $value;
+        $this->expire = self::expiresTimestamp($expire);
+        $this->path = empty($path) ? '/' : $path;
+        $this->domain = $domain;
+        $this->sameSite = self::formatSameSite($sameSite);
+        $this->secure = $secure;
+        $this->httpOnly = $httpOnly;
+        $this->raw = $raw;
+        $this->partitioned = $partitioned;
+    }
+
+    public function withValue($value)
+    {
+        $cookie = clone $this;
+        $cookie->value = $value;
+
+        return $cookie;
+    }
+
+    public function withDomain($domain)
+    {
+        $cookie = clone $this;
+        $cookie->domain = $domain;
+
+        return $cookie;
+    }
+
+    public function withExpires($expire = 0)
+    {
+        $cookie = clone $this;
+        $cookie->expire = self::expiresTimestamp($expire);
+
+        return $cookie;
+    }
+
+    private static function expiresTimestamp($expire = 0)
+    {
         // convert expiration time to a Unix timestamp
         if ($expire instanceof \DateTimeInterface) {
             $expire = $expire->format('U');
@@ -2069,37 +2505,93 @@ class HttpCookie
             }
         }
 
-        $this->name = $name;
-        $this->value = $value;
-        $this->domain = $domain;
-        $this->expire = 0 < $expire ? (int) $expire : 0;
-        $this->path = empty($path) ? '/' : $path;
-        $this->secure = $secure;
-        $this->httpOnly = $httpOnly;
-        $this->raw = $raw;
+        return 0 < $expire ? (int) $expire : 0;
+    }
 
-        if (null !== $sameSite) {
+    public function withPath($path)
+    {
+        $cookie = clone $this;
+        $cookie->path = '' === $path ? '/' : $path;
+
+        return $cookie;
+    }
+
+    public function withSecure($secure = true)
+    {
+        $cookie = clone $this;
+        $cookie->secure = $secure;
+
+        return $cookie;
+    }
+
+    public function withHttpOnly($httpOnly = true)
+    {
+        $cookie = clone $this;
+        $cookie->httpOnly = $httpOnly;
+
+        return $cookie;
+    }
+
+    public function withRaw($raw = true)
+    {
+        if ($raw && false !== strpbrk($this->name, self::RESERVED_CHARS_LIST)) {
+            throw new \InvalidArgumentException(\sprintf('The cookie name "%s" contains invalid characters.', $this->name));
+        }
+
+        $cookie = clone $this;
+        $cookie->raw = $raw;
+
+        return $cookie;
+    }
+
+    public function withSameSite($sameSite)
+    {
+        $cookie = clone $this;
+        $cookie->sameSite = self::formatSameSite($sameSite);
+
+        return $cookie;
+    }
+
+    private static function formatSameSite($sameSite)
+    {
+        if ('' === $sameSite) {
+            $sameSite = null;
+        } elseif (null !== $sameSite) {
             $sameSite = strtolower($sameSite);
         }
 
-        if (!in_array($sameSite, array(self::SAMESITE_LAX, self::SAMESITE_STRICT, null), true)) {
+        if (!in_array($sameSite, array(self::SAMESITE_LAX, self::SAMESITE_STRICT, self::SAMESITE_NONE, null), true)) {
             throw new \InvalidArgumentException('The "sameSite" parameter value is not valid.');
         }
 
-        $this->sameSite = $sameSite;
+        return $sameSite;
+    }
+
+    public function withPartitioned($partitioned = true)
+    {
+        $cookie = clone $this;
+        $cookie->partitioned = $partitioned;
+
+        return $cookie;
     }
 
     public function __toString()
     {
-        $str = ($this->isRaw() ? $this->getName() : urlencode($this->getName())).'=';
+        if ($this->isRaw()) {
+            $str = $this->getName();
+        } else {
+            $str = str_replace(self::RESERVED_CHARS_FROM, self::RESERVED_CHARS_TO, $this->getName());
+        }
+
+        $str .= '=';
 
         if ('' === (string) $this->getValue()) {
-            $str .= 'deleted; expires='.gmdate('D, d-M-Y H:i:s T', time() - 31536001).'; max-age=-31536001';
+            $str .= 'deleted; expires='.gmdate('D, d M Y H:i:s T', time() - 31536001).'; Max-Age=0';
         } else {
             $str .= $this->isRaw() ? $this->getValue() : rawurlencode($this->getValue());
 
-            if (0 != $this->getExpiresTime()) {
-                $str .= '; expires='.gmdate('D, d-M-Y H:i:s T', $this->getExpiresTime()).'; max-age='.$this->getMaxAge();
+            if (0 !== $this->getExpiresTime()) {
+                $str .= '; expires='.gmdate('D, d M Y H:i:s T', $this->getExpiresTime()).'; Max-Age='.$this->getMaxAge();
             }
         }
 
@@ -2111,16 +2603,20 @@ class HttpCookie
             $str .= '; domain='.$this->getDomain();
         }
 
-        if (true === $this->isSecure()) {
+        if ($this->isSecure()) {
             $str .= '; secure';
         }
 
-        if (true === $this->isHttpOnly()) {
+        if ($this->isHttpOnly()) {
             $str .= '; httponly';
         }
 
         if (null !== $this->getSameSite()) {
             $str .= '; samesite='.$this->getSameSite();
+        }
+
+        if ($this->isPartitioned()) {
+            $str .= '; partitioned';
         }
 
         return $str;
@@ -2148,7 +2644,9 @@ class HttpCookie
 
     public function getMaxAge()
     {
-        return 0 != $this->expire ? $this->expire - time() : 0;
+        $maxAge = $this->expire - time();
+
+        return max(0, $maxAge);
     }
 
     public function getPath()
@@ -2158,7 +2656,7 @@ class HttpCookie
 
     public function isSecure()
     {
-        return $this->secure;
+        return isset($this->secure) ? $this->secure : $this->secureDefault;
     }
 
     public function isHttpOnly()
@@ -2168,7 +2666,7 @@ class HttpCookie
 
     public function isCleared()
     {
-        return $this->expire < time();
+        return 0 !== $this->expire && $this->expire < time();
     }
 
     public function isRaw()
@@ -2176,14 +2674,27 @@ class HttpCookie
         return $this->raw;
     }
 
+    public function isPartitioned()
+    {
+        return $this->partitioned;
+    }
+
     public function getSameSite()
     {
         return $this->sameSite;
+    }
+
+    public function setSecureDefault($default)
+    {
+        $this->secureDefault = $default;
     }
 }
 
 class HttpHeaderBag implements \IteratorAggregate, \Countable
 {
+    const UPPER = '_ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const LOWER = '-abcdefghijklmnopqrstuvwxyz';
+
     protected $headers = array();
     protected $cacheControl = array();
 
@@ -2196,7 +2707,7 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
 
     public function __toString()
     {
-        if (!$headers = $this->all()) {
+        if (empty($headers = $this->all())) {
             return '';
         }
 
@@ -2213,8 +2724,13 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
         return $content;
     }
 
-    public function all()
+    public function all($key = null)
     {
+        if (null !== $key) {
+            $key = strtr($key, self::UPPER, self::LOWER);
+            return isset($this->headers[$key]) ? $this->headers[$key] : array();
+        }
+
         return $this->headers;
     }
 
@@ -2238,29 +2754,24 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
 
     public function get($key, $default = null, $first = true)
     {
-        $key = str_replace('_', '-', strtolower($key));
-        $headers = $this->all();
+        $headers = $this->all($key);
 
-        if (!array_key_exists($key, $headers)) {
-            if (null === $default) {
-                return $first ? null : array();
-            }
-
+        if (empty($headers)) {
             return $first ? $default : array($default);
         }
 
-        if ($first) {
-            return \count($headers[$key]) ? $headers[$key][0] : $default;
+        if (null === $headers[0]) {
+            return $first ? null : array();
         }
 
-        return $headers[$key];
+        return $first ? $headers[0] : $headers;
     }
 
     public function set($key, $values, $replace = true)
     {
-        $key = str_replace('_', '-', strtolower($key));
+        $key = strtr($key, self::UPPER, self::LOWER);
 
-        if (\is_array($values)) {
+        if (is_array($values)) {
             $values = array_values($values);
 
             if (true === $replace || !isset($this->headers[$key])) {
@@ -2283,17 +2794,18 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
 
     public function has($key)
     {
-        return array_key_exists(str_replace('_', '-', strtolower($key)), $this->all());
+        $key = strtr($key, self::UPPER, self::LOWER);
+        return array_key_exists($key, $this->all());
     }
 
     public function contains($key, $value)
     {
-        return in_array($value, $this->get($key, null, false));
+        return in_array($value, $this->get($key, null, false), true);
     }
 
     public function remove($key)
     {
-        $key = str_replace('_', '-', strtolower($key));
+        $key = strtr($key, self::UPPER, self::LOWER);
 
         unset($this->headers[$key]);
 
@@ -2305,11 +2817,11 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
     public function getDate($key, /*\DateTime*/ $default = null)
     {
         if (null === $value = $this->get($key)) {
-            return $default;
+            return null !== $default ? \DateTimeImmutable::createFromInterface($default) : null;
         }
 
-        if (false === $date = \DateTime::createFromFormat(DATE_RFC2822, $value)) {
-            throw new \RuntimeException(sprintf('The %s HTTP header is not parseable (%s).', $key, $value));
+        if (false === $date = \DateTimeImmutable::createFromFormat(DATE_RFC2822, $value)) {
+            throw new \RuntimeException(\sprintf('The "%s" HTTP header is not parseable (%s).', $key, $value));
         }
 
         return $date;
@@ -2353,32 +2865,16 @@ class HttpHeaderBag implements \IteratorAggregate, \Countable
 
     protected function getCacheControlHeader()
     {
-        $parts = array();
         ksort($this->cacheControl);
-        foreach ($this->cacheControl as $key => $value) {
-            if (true === $value) {
-                $parts[] = $key;
-            } else {
-                if (preg_match('#[^a-zA-Z0-9._-]#', $value)) {
-                    $value = '"'.$value.'"';
-                }
 
-                $parts[] = "$key=$value";
-            }
-        }
-
-        return implode(', ', $parts);
+        return HttpHeaderUtils::toString($this->cacheControl, ',');
     }
 
     protected function parseCacheControl($header)
     {
-        $cacheControl = array();
-        preg_match_all('#([a-zA-Z][a-zA-Z_-]*)\s*(?:=(?:"([^"]*)"|([^ \t",;]*)))?#', $header, $matches, PREG_SET_ORDER);
-        foreach ($matches as $match) {
-            $cacheControl[strtolower($match[1])] = isset($match[3]) ? $match[3] : (isset($match[2]) ? $match[2] : true);
-        }
+        $parts = HttpHeaderUtils::split($header, ',=');
 
-        return $cacheControl;
+        return HttpHeaderUtils::combine($parts);
     }
 }
 
@@ -2443,9 +2939,16 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         }
     }
 
-    public function all()
+    public function all($key = null)
     {
         $headers = parent::all();
+
+        if (null !== $key) {
+            $key = strtr($key, self::UPPER, self::LOWER);
+
+            return 'set-cookie' !== $key ? (isset($headers[$key]) ? $headers[$key] : array()) : array_map('strval', $this->getCookies());
+        }
+
         foreach ($this->getCookies() as $cookie) {
             $headers['set-cookie'][] = (string) $cookie;
         }
@@ -2455,7 +2958,7 @@ class HttpResponseHeaderBag extends HttpHeaderBag
 
     public function set($key, $values, $replace = true)
     {
-        $uniqueKey = str_replace('_', '-', strtolower($key));
+        $uniqueKey = strtr($key, self::UPPER, self::LOWER);
 
         if ('set-cookie' === $uniqueKey) {
             if ($replace) {
@@ -2474,8 +2977,7 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         parent::set($key, $values, $replace);
 
         // ensure the cache-control header has sensible defaults
-        if (\in_array($uniqueKey, array('cache-control', 'etag', 'last-modified', 'expires'), true)) {
-            $computed = $this->computeCacheControlValue();
+        if (in_array($uniqueKey, array('cache-control', 'etag', 'last-modified', 'expires'), true) && '' !== $computed = $this->computeCacheControlValue()) {
             $this->headers['cache-control'] = array($computed);
             $this->headerNames['cache-control'] = 'Cache-Control';
             $this->computedCacheControl = $this->parseCacheControl($computed);
@@ -2484,7 +2986,7 @@ class HttpResponseHeaderBag extends HttpHeaderBag
 
     public function remove($key)
     {
-        $uniqueKey = str_replace('_', '-', strtolower($key));
+        $uniqueKey = strtr($key, self::UPPER, self::LOWER);
         unset($this->headerNames[$uniqueKey]);
 
         if ('set-cookie' === $uniqueKey) {
@@ -2516,15 +3018,15 @@ class HttpResponseHeaderBag extends HttpHeaderBag
 
     public function setCookie(/*HttpCookie*/ $cookie)
     {
+        if (!isset($this->cookies[$cookie->getDomain()])) $this->cookies[$cookie->getDomain()] = array();
+        if (!isset($this->cookies[$cookie->getDomain()][$cookie->getPath()])) $this->cookies[$cookie->getDomain()][$cookie->getPath()] = array();
         $this->cookies[$cookie->getDomain()][$cookie->getPath()][$cookie->getName()] = $cookie;
-        $this->headerNames['set-cookie'] = 'Set-HttpCookie';
+        $this->headerNames['set-cookie'] = 'Set-Cookie';
     }
 
     public function removeCookie($name, $path = '/', $domain = null)
     {
-        if (null === $path) {
-            $path = '/';
-        }
+        $path = isset($path) ? $path : '/';
 
         unset($this->cookies[$domain][$path][$name]);
 
@@ -2563,54 +3065,27 @@ class HttpResponseHeaderBag extends HttpHeaderBag
         return $flattenedCookies;
     }
 
-    public function clearCookie($name, $path = '/', $domain = null, $secure = false, $httpOnly = true)
+    public function clearCookie($name, $path = '/', $domain = null, $secure = false, $httpOnly = true, $sameSite = null /* , $partitioned = false */)
     {
-        $this->setCookie(new HttpCookie($name, null, 1, $path, $domain, $secure, $httpOnly));
+        $partitioned = 6 < \func_num_args() ? func_get_arg(6) : false;
+
+        $this->setCookie(new HttpCookie($name, null, 1, $path, $domain, $secure, $httpOnly, false, $sameSite, $partitioned));
     }
 
     public function makeDisposition($disposition, $filename, $filenameFallback = '')
     {
-        if (!in_array($disposition, array(self::DISPOSITION_ATTACHMENT, self::DISPOSITION_INLINE))) {
-            throw new \InvalidArgumentException(sprintf('The disposition must be either "%s" or "%s".', self::DISPOSITION_ATTACHMENT, self::DISPOSITION_INLINE));
-        }
-
-        if ('' == $filenameFallback) {
-            $filenameFallback = $filename;
-        }
-
-        // filenameFallback is not ASCII.
-        if (!preg_match('/^[\x20-\x7e]*$/', $filenameFallback)) {
-            throw new \InvalidArgumentException('The filename fallback must only contain ASCII characters.');
-        }
-
-        // percent characters aren't safe in fallback.
-        if (false !== strpos($filenameFallback, '%')) {
-            throw new \InvalidArgumentException('The filename fallback cannot contain the "%" character.');
-        }
-
-        // path separators aren't allowed in either.
-        if (false !== strpos($filename, '/') || false !== strpos($filename, '\\') || false !== strpos($filenameFallback, '/') || false !== strpos($filenameFallback, '\\')) {
-            throw new \InvalidArgumentException('The filename and the fallback cannot contain the "/" and "\\" characters.');
-        }
-
-        $output = sprintf('%s; filename="%s"', $disposition, str_replace('"', '\\"', $filenameFallback));
-
-        if ($filename !== $filenameFallback) {
-            $output .= sprintf("; filename*=utf-8''%s", rawurlencode($filename));
-        }
-
-        return $output;
+        return HttpHeaderUtils::makeDisposition($disposition, $filename, $filenameFallback);
     }
 
     protected function computeCacheControlValue()
     {
-        if (!$this->cacheControl && !$this->has('ETag') && !$this->has('Last-Modified') && !$this->has('Expires')) {
-            return 'no-cache, private';
-        }
-
         if (!$this->cacheControl) {
+            if ($this->has('Last-Modified') || $this->has('Expires')) {
+                return 'private, must-revalidate'; // allows for heuristic expiration (RFC 7234 Section 4.2.2) in the case of "Last-Modified"
+            }
+
             // conservative by default
-            return 'private, must-revalidate';
+            return 'no-cache, private';
         }
 
         $header = $this->getCacheControlHeader();
@@ -2628,9 +3103,7 @@ class HttpResponseHeaderBag extends HttpHeaderBag
 
     private function initDate()
     {
-        $now = \DateTime::createFromFormat('U', time());
-        $now->setTimezone(new \DateTimeZone('UTC'));
-        $this->set('Date', $now->format('D, d M Y H:i:s').' GMT');
+        $this->set('Date', gmdate('D, d M Y H:i:s').' GMT');
     }
 }
 
@@ -2639,6 +3112,7 @@ class HttpResponse
     const HTTP_CONTINUE = 100;
     const HTTP_SWITCHING_PROTOCOLS = 101;
     const HTTP_PROCESSING = 102;            // RFC2518
+    const HTTP_EARLY_HINTS = 103;           // RFC8297
     const HTTP_OK = 200;
     const HTTP_CREATED = 201;
     const HTTP_ACCEPTED = 202;
@@ -2681,12 +3155,12 @@ class HttpResponse
     const HTTP_UNPROCESSABLE_ENTITY = 422;                                        // RFC4918
     const HTTP_LOCKED = 423;                                                      // RFC4918
     const HTTP_FAILED_DEPENDENCY = 424;                                           // RFC4918
-    const HTTP_RESERVED_FOR_WEBDAV_ADVANCED_COLLECTIONS_EXPIRED_PROPOSAL = 425;   // RFC2817
+    const HTTP_TOO_EARLY = 425;                                                   // RFC-ietf-httpbis-replay-04
     const HTTP_UPGRADE_REQUIRED = 426;                                            // RFC2817
     const HTTP_PRECONDITION_REQUIRED = 428;                                       // RFC6585
     const HTTP_TOO_MANY_REQUESTS = 429;                                           // RFC6585
     const HTTP_REQUEST_HEADER_FIELDS_TOO_LARGE = 431;                             // RFC6585
-    const HTTP_UNAVAILABLE_FOR_LEGAL_REASONS = 451;
+    const HTTP_UNAVAILABLE_FOR_LEGAL_REASONS = 451;                               // RFC7725
     const HTTP_INTERNAL_SERVER_ERROR = 500;
     const HTTP_NOT_IMPLEMENTED = 501;
     const HTTP_BAD_GATEWAY = 502;
@@ -2699,28 +3173,46 @@ class HttpResponse
     const HTTP_NOT_EXTENDED = 510;                                                // RFC2774
     const HTTP_NETWORK_AUTHENTICATION_REQUIRED = 511;                             // RFC6585
 
+    /**
+     * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control
+     */
+    const HTTP_RESPONSE_CACHE_CONTROL_DIRECTIVES = array(
+        'must_revalidate' => false,
+        'no_cache' => false,
+        'no_store' => false,
+        'no_transform' => false,
+        'public' => false,
+        'private' => false,
+        'proxy_revalidate' => false,
+        'max_age' => true,
+        's_maxage' => true,
+        'stale_if_error' => true,         // RFC5861
+        'stale_while_revalidate' => true, // RFC5861
+        'immutable' => false,
+        'last_modified' => true,
+        'etag' => true,
+    );
+
     protected static $trustXSendfileTypeHeader = false;
 
     public $headers;
 
     protected $content;
+    protected $version;
+    protected $statusCode;
+    protected $statusText;
+    protected $charset = null;
     protected $file = null;
-    protected $maxlen;
-    protected $offset;
+    protected $maxlen = -1;
+    protected $offset = 0;
+    protected $chunkSize = 16 * 1024;
     protected $_deleteFileAfterSend = false;
     protected $targetUrl = null;
     protected $callback = null;
-    protected $streamed;
-    private $headersSent;
+    protected $streamed = false;
+    private $headersSent = false;
     private $canceled = false;
-
-    protected $version;
-
-    protected $statusCode;
-
-    protected $statusText;
-
-    protected $charset;
+    private $sentHeaders;
 
     public static $statusTexts = array(
         100 => 'Continue',
@@ -2758,17 +3250,17 @@ class HttpResponse
         410 => 'Gone',
         411 => 'Length Required',
         412 => 'Precondition Failed',
-        413 => 'Payload Too Large',
+        413 => 'Content Too Large',                                           // RFC-ietf-httpbis-semantics
         414 => 'URI Too Long',
         415 => 'Unsupported Media Type',
         416 => 'Range Not Satisfiable',
         417 => 'Expectation Failed',
         418 => 'I\'m a teapot',                                               // RFC2324
         421 => 'Misdirected Request',                                         // RFC7540
-        422 => 'Unprocessable Entity',                                        // RFC4918
+        422 => 'Unprocessable Content',                                       // RFC-ietf-httpbis-semantics
         423 => 'Locked',                                                      // RFC4918
         424 => 'Failed Dependency',                                           // RFC4918
-        425 => 'Reserved for WebDAV advanced collections expired proposal',   // RFC2817
+        425 => 'Too Early',                                                   // RFC-ietf-httpbis-replay-04
         426 => 'Upgrade Required',                                            // RFC2817
         428 => 'Precondition Required',                                       // RFC6585
         429 => 'Too Many Requests',                                           // RFC6585
@@ -2785,27 +3277,19 @@ class HttpResponse
         508 => 'Loop Detected',                                               // RFC5842
         510 => 'Not Extended',                                                // RFC2774
         511 => 'Network Authentication Required',                             // RFC6585
+                             // RFC6585
     );
 
     public function __construct($content = '', /*int*/ $status = 200, /*array*/ $headers = array())
     {
         $this->headers = new HttpResponseHeaderBag($headers);
         $this->setContent($content);
-        $this->setStatusCode($status);
+        $this->setStatusCode((int)$status);
         $this->setProtocolVersion('1.0');
 
         $this->streamed = false;
         $this->headersSent = false;
-    }
-
-    public static function create($content = '', $status = 200, $headers = array())
-    {
-        return new self($content, $status, $headers);
-    }
-
-    public static function enableXSendfileTypeHeader( $enable=true )
-    {
-        self::$trustXSendfileTypeHeader = (bool)$enable;
+        $this->sentHeaders = array();
     }
 
     public function __toString()
@@ -2821,123 +3305,30 @@ class HttpResponse
         $this->headers = clone $this->headers;
     }
 
-    public function cancel($bool = true)
+    private function _prepare(/*HttpRequest*/ $request)
     {
-        $this->canceled = (bool)$bool;
-        return $this;
-    }
-
-    public function prepare( /*HttpRequest*/ $request )
-    {
-        if ($this->canceled) return $this;
-
-        if ( $this->file ) {
-            if (!$this->headers->has('Content-Type')) {
-                $file_type = mime_content_type( $this->file );
-                if ( empty($file_type) ) $file_type = 'application/octet-stream';
-                $this->headers->set('Content-Type', $file_type);
-            }
-
-            if ('HTTP/1.0' !== $request->server->get('SERVER_PROTOCOL')) {
-                $this->setProtocolVersion('1.1');
-            }
-
-            $this->ensureIEOverSSLCompatibility($request);
-
-            $this->offset = 0;
-            $this->maxlen = -1;
-
-            if (false === $fileSize = filesize($this->file)) {
-                return $this;
-            }
-            $this->headers->set('Content-Length', $fileSize);
-
-            if (!$this->headers->has('Accept-Ranges')) {
-                // Only accept ranges on safe HTTP methods
-                $this->headers->set('Accept-Ranges', $request->isMethodSafe(false) ? 'bytes' : 'none');
-            }
-
-            if (self::$trustXSendfileTypeHeader && $request->headers->has('X-Sendfile-Type')) {
-                // Use X-Sendfile, do not send any content.
-                $type = $request->headers->get('X-Sendfile-Type');
-                $path = realpath($this->file);
-                // Fall back to scheme://path for stream wrapped locations.
-                if (false === $path) {
-                    $path = $this->file;
-                }
-                if ('x-accel-redirect' === strtolower($type)) {
-                    // Do X-Accel-Mapping substitutions.
-                    // @link http://wiki.nginx.org/X-accel#X-Accel-Redirect
-                    foreach (explode(',', $request->headers->get('X-Accel-Mapping', '')) as $mapping) {
-                        $mapping = explode('=', $mapping, 2);
-
-                        if (2 == count($mapping)) {
-                            $pathPrefix = trim($mapping[0]);
-                            $location = trim($mapping[1]);
-
-                            if (substr($path, 0, strlen($pathPrefix)) === $pathPrefix) {
-                                $path = $location.substr($path, strlen($pathPrefix));
-                                break;
-                            }
-                        }
-                    }
-                }
-                $this->headers->set($type, $path);
-                $this->maxlen = 0;
-            } elseif ($request->headers->has('Range')) {
-                // Process the range headers.
-                if (!$request->headers->has('If-Range') || $this->hasValidIfRangeHeader($request->headers->get('If-Range'))) {
-                    $range = $request->headers->get('Range');
-
-                    list($start, $end) = explode('-', substr($range, 6), 2) + array(0);
-
-                    $end = ('' === $end) ? $fileSize - 1 : (int) $end;
-
-                    if ('' === $start) {
-                        $start = $fileSize - $end;
-                        $end = $fileSize - 1;
-                    } else {
-                        $start = (int) $start;
-                    }
-
-                    if ($start <= $end) {
-                        if ($start < 0 || $end > $fileSize - 1) {
-                            $this->setStatusCode(416);
-                            $this->headers->set('Content-Range', sprintf('bytes */%s', $fileSize));
-                        } elseif (0 !== $start || $end !== $fileSize - 1) {
-                            $this->maxlen = $end < $fileSize ? $end - $start + 1 : -1;
-                            $this->offset = $start;
-
-                            $this->setStatusCode(206);
-                            $this->headers->set('Content-Range', sprintf('bytes %s-%s/%s', $start, $end, $fileSize));
-                            $this->headers->set('Content-Length', $end - $start + 1);
-                        }
-                    }
-                }
-            }
-            return $this;
-        }
-
         $headers = $this->headers;
 
         if ($this->isInformational() || $this->isEmpty()) {
             $this->setContent(null);
             $headers->remove('Content-Type');
             $headers->remove('Content-Length');
+            // prevent PHP from sending the Content-Type header based on default_mimetype
+            ini_set('default_mimetype', '');
         } else {
             // Content-type based on the Request
             if (!$headers->has('Content-Type')) {
-                $format = $request->getRequestFormat();
+                $format = $request->getRequestFormat(null);
                 if (null !== $format && $mimeType = $request->getMimeType($format)) {
                     $headers->set('Content-Type', $mimeType);
                 }
             }
 
             // Fix Content-Type
-            $charset = $this->charset ? $this->charset : 'UTF-8';
+            $charset = !empty($this->charset) ? $this->charset : 'UTF-8';
             if (!$headers->has('Content-Type')) {
                 $headers->set('Content-Type', 'text/html; charset='.$charset);
-                // adapted from CakePHP, Http\HttpResponse class
+                // adapted from CakePHP, Http\Response class
             } elseif ((0 === stripos($headers->get('Content-Type'), 'text/') || in_array(strtolower($headers->get('Content-Type')), array('application/javascript', 'application/json', 'application/xml', 'application/rss+xml'))) && false === stripos($headers->get('Content-Type'), 'charset')) {
                 // add the charset
                 $headers->set('Content-Type', $headers->get('Content-Type').'; charset='.$charset);
@@ -2964,63 +3355,204 @@ class HttpResponse
         }
 
         // Check if we need to send extra expire info headers
-        if ('1.0' == $this->getProtocolVersion() && false !== strpos($this->headers->get('Cache-Control'), 'no-cache')) {
+        if ('1.0' == $this->getProtocolVersion() && false !== strpos($this->headers->get('Cache-Control', ''), 'no-cache')) {
             $this->headers->set('pragma', 'no-cache');
             $this->headers->set('expires', -1);
         }
 
         $this->ensureIEOverSSLCompatibility($request);
 
+        if ($request->isSecure()) {
+            foreach ($headers->getCookies() as $cookie) {
+                $cookie->setSecureDefault(true);
+            }
+        }
         return $this;
     }
 
-    private function hasValidIfRangeHeader($header)
+    public function prepare(/*HttpRequest*/ $request)
     {
-        if ($this->getEtag() === $header) {
-            return true;
+        if ($this->canceled) {
+            return $this;
         }
 
-        if (null === $lastModified = $this->getLastModified()) {
-            return false;
-        }
+        if ($this->file) {
+            if ($this->isInformational() || $this->isEmpty()) {
+                $this->_prepare($request);
 
-        return $lastModified->format('D, d M Y H:i:s').' GMT' === $header;
+                $this->maxlen = 0;
+
+                return $this;
+            }
+            if (!$this->headers->has('Content-Type')) {
+                $file_type = mime_content_type($this->file);
+                if (empty($file_type)) $file_type = 'application/octet-stream';
+                $this->headers->set('Content-Type', $file_type);
+            }
+
+            $this->_prepare($request);
+
+            $this->offset = 0;
+            $this->maxlen = -1;
+
+            if (false === $fileSize = filesize($this->file)) {
+                return $this;
+            }
+            $this->headers->remove('Transfer-Encoding');
+            $this->headers->set('Content-Length', $fileSize);
+
+            if (!$this->headers->has('Accept-Ranges')) {
+                // Only accept ranges on safe HTTP methods
+                $this->headers->set('Accept-Ranges', $request->isMethodSafe() ? 'bytes' : 'none');
+            }
+
+            if (self::$trustXSendfileTypeHeader && $request->headers->has('X-Sendfile-Type')) {
+                // Use X-Sendfile, do not send any content.
+                $type = $request->headers->get('X-Sendfile-Type');
+                $path = realpath($this->file);
+                // Fall back to scheme://path for stream wrapped locations.
+                if (false === $path) {
+                    $path = $this->file;
+                }
+                if ('x-accel-redirect' === strtolower($type)) {
+                    // Do X-Accel-Mapping substitutions.
+                    // @link https://github.com/rack/rack/blob/main/lib/rack/sendfile.rb
+                    // @link https://mattbrictson.com/blog/accelerated-rails-downloads
+                    if (!$request->headers->has('X-Accel-Mapping')) {
+                        throw new \LogicException('The "X-Accel-Mapping" header must be set when "X-Sendfile-Type" is set to "X-Accel-Redirect".');
+                    }
+                    $parts = HttpHeaderUtils::split($request->headers->get('X-Accel-Mapping'), ',=');
+                    foreach ($parts as $part) {
+                        list($pathPrefix, $location) = $part;
+                        if (0 === strpos($path, $pathPrefix)) {
+                            $path = $location.substr($path, strlen($pathPrefix));
+                            // Only set X-Accel-Redirect header if a valid URI can be produced
+                            // as nginx does not serve arbitrary file paths.
+                            $this->headers->set($type, rawurlencode($path));
+                            $this->maxlen = 0;
+                            break;
+                        }
+                    }
+                } else {
+                    $this->headers->set($type, $path);
+                    $this->maxlen = 0;
+                }
+            } elseif ($request->headers->has('Range') && $request->isMethod('GET')) {
+                // Process the range headers.
+                if (!$request->headers->has('If-Range') || $this->hasValidIfRangeHeader($request->headers->get('If-Range'))) {
+                    $range = $request->headers->get('Range');
+
+                    if (0 === strpos($range, 'bytes=')) {
+                        list($start, $end) = explode('-', substr($range, 6), 2) + [1 => 0];
+
+                        $end = ('' === $end) ? $fileSize - 1 : (int) $end;
+
+                        if ('' === $start) {
+                            $start = $fileSize - $end;
+                            $end = $fileSize - 1;
+                        } else {
+                            $start = (int) $start;
+                        }
+
+                        if ($start <= $end) {
+                            $end = min($end, $fileSize - 1);
+                            if ($start < 0 || $start > $end) {
+                                $this->setStatusCode(416);
+                                $this->headers->set('Content-Range', sprintf('bytes */%s', $fileSize));
+                            } elseif ($end - $start < $fileSize - 1) {
+                                $this->maxlen = $end < $fileSize ? $end - $start + 1 : -1;
+                                $this->offset = $start;
+
+                                $this->setStatusCode(206);
+                                $this->headers->set('Content-Range', sprintf('bytes %s-%s/%s', $start, $end, $fileSize));
+                                $this->headers->set('Content-Length', $end - $start + 1);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ($request->isMethod('HEAD')) {
+                $this->maxlen = 0;
+            }
+        } else {
+            $this->_prepare($request);
+        }
+        return $this;
     }
 
-    public function sendHeaders()
+    public function cancel($bool = true)
+    {
+        $this->canceled = (bool)$bool;
+        return $this;
+    }
+
+    public function sendHeaders($statusCode = null)
     {
         // headers have already been sent by the developer
         if ($this->headersSent || headers_sent()) {
             return $this;
         }
 
-        $this->headersSent = true;
+        if ($statusCode < 100 || $statusCode >= 200) {
+            $this->headersSent = true;
+        }
+
+        $informationalResponse = $statusCode >= 100 && $statusCode < 200;
+        if ($informationalResponse && !function_exists('headers_send')) {
+            // skip informational responses if not supported by the SAPI
+            return $this;
+        }
 
         // headers
         foreach ($this->headers->allPreserveCaseWithoutCookies() as $name => $values) {
-            foreach ($values as $value) {
-                header($name.': '.$value, false, $this->statusCode);
+            // As recommended by RFC 8297, PHP automatically copies headers from previous 103 responses, we need to deal with that if headers changed
+            $previousValues = isset($this->sentHeaders[$name]) ? $this->sentHeaders[$name] : null;
+            if ($previousValues === $values) {
+                // Header already sent in a previous response, it will be automatically copied in this response by PHP
+                continue;
+            }
+
+            $replace = 0 === strcasecmp($name, 'Content-Type');
+
+            if (null !== $previousValues && array_diff($previousValues, $values)) {
+                header_remove($name);
+                $previousValues = null;
+            }
+
+            $newValues = null === $previousValues ? $values : array_diff($values, $previousValues);
+
+            foreach ($newValues as $value) {
+                header($name.': '.$value, $replace, $this->statusCode);
+            }
+
+            if ($informationalResponse) {
+                $this->sentHeaders[$name] = $values;
             }
         }
-
-        // status
-        header(sprintf('HTTP/%s %s %s', $this->version, $this->statusCode, $this->statusText), true, $this->statusCode);
 
         // cookies
         foreach ($this->headers->getCookies() as $cookie) {
-            if ($cookie->isRaw()) {
-                setrawcookie($cookie->getName(), $cookie->getValue(), $cookie->getExpiresTime(), $cookie->getPath(), $cookie->getDomain(), $cookie->isSecure(), $cookie->isHttpOnly());
-            } else {
-                setcookie($cookie->getName(), $cookie->getValue(), $cookie->getExpiresTime(), $cookie->getPath(), $cookie->getDomain(), $cookie->isSecure(), $cookie->isHttpOnly());
-            }
+            header('Set-Cookie: '.$cookie, false, $this->statusCode);
         }
+
+        if ($informationalResponse) {
+            headers_send($statusCode);
+
+            return $this;
+        }
+
+        if (!$statusCode) $statusCode = $this->statusCode;
+
+        // status
+        header(sprintf('HTTP/%s %s %s', $this->version, $statusCode, $this->statusText), true, $statusCode);
 
         return $this;
     }
 
     public function sendContent()
     {
-        if ( $this->callback ) {
+        if ($this->callback) {
             if ($this->streamed) {
                 return $this;
             }
@@ -3029,26 +3561,53 @@ class HttpResponse
 
             call_user_func($this->callback);
 
-        } elseif ( $this->file ) {
-            if (!$this->isSuccessful()) {
-                echo $this->content;
-                return $this;
-            }
+        } elseif ($this->file) {
+            try {
+                if (!$this->isSuccessful()) {
+                    return $this;
+                }
 
-            if (0 == $this->maxlen) {
-                return $this;
-            }
+                if (0 == $this->maxlen) {
+                    return $this;
+                }
 
-            $out = fopen('php://output', 'wb');
-            $file = fopen($this->file, 'rb');
+                //$out = fopen('php://output', 'wb');
+                //$file = fopen($this->file, 'rb');
+                //stream_copy_to_stream($file, $out, $this->maxlen, $this->offset);
+                $out = fopen('php://output', 'w');
+                $file = fopen($this->file, 'r');
 
-            stream_copy_to_stream($file, $out, $this->maxlen, $this->offset);
+                ignore_user_abort(true);
 
-            fclose($out);
-            fclose($file);
+                if (0 !== $this->offset) {
+                    fseek($file, $this->offset);
+                }
 
-            if ($this->_deleteFileAfterSend) {
-                unlink($this->file);
+                $length = $this->maxlen;
+                while ($length && !feof($file)) {
+                    $read = $length > $this->chunkSize || 0 > $length ? $this->chunkSize : $length;
+
+                    if (false === $data = fread($file, $read)) {
+                        break;
+                    }
+                    while ('' !== $data) {
+                        $read = fwrite($out, $data);
+                        if (false === $read || connection_aborted()) {
+                            break 2;
+                        }
+                        if (0 < $length) {
+                            $length -= $read;
+                        }
+                        $data = substr($data, $read);
+                    }
+                }
+
+                fclose($out);
+                fclose($file);
+            } finally {
+                if ($this->_deleteFileAfterSend) {
+                    unlink($this->file);
+                }
             }
 
         } else {
@@ -3058,64 +3617,51 @@ class HttpResponse
         return $this;
     }
 
-    public function send()
+    public function send($flush = true)
     {
         if ($this->canceled) return $this;
 
         $this->sendHeaders();
         $this->sendContent();
 
+        if (!$flush) {
+            return $this;
+        }
+
         if (function_exists('fastcgi_finish_request')) {
             fastcgi_finish_request();
-        } elseif (!\in_array(PHP_SAPI, array('cli', 'phpdbg'), true)) {
+        } elseif (function_exists('litespeed_finish_request')) {
+            litespeed_finish_request();
+        } elseif (!in_array(PHP_SAPI, array('cli', 'phpdbg', 'embed'), true)) {
             self::closeOutputBuffers(0, true);
+            flush();
         }
+
         return $this;
     }
 
     public function setContent($content)
     {
-        if (null !== $content && !is_string($content) && !is_numeric($content) && !is_callable(array($content, '__toString'))) {
-            throw new \UnexpectedValueException(sprintf('The HttpResponse content must be a string or object implementing __toString(), "%s" given.', gettype($content)));
-        }
-
-        $this->content = (string) $content;
+        $this->content = (string) (isset($content) ? $content : '');
 
         return $this;
     }
 
-    public function setFile($file, $contentDisposition = null, $autoEtag = false, $autoLastModified = true)
+    public function getContent()
     {
-        if (!is_readable($file)) {
-            throw new /*File*/\Exception('File must be readable.');
-        }
-
-        $this->file = $file;
-
-        if ($autoEtag) {
-            $this->setAutoEtag();
-        }
-
-        if ($autoLastModified) {
-            $this->setAutoLastModified();
-        }
-
-        if ($contentDisposition) {
-            $this->setContentDisposition($contentDisposition);
-        }
-
-        return $this;
+        return $this->content;
     }
 
-    public function getFile()
+    public function setChunks($chunks)
     {
-        return $this->file;
-    }
+        $this->callback = static function () use ($chunks) {
+            foreach ($chunks as $chunk) {
+                echo $chunk;
+                @ob_flush();
+                flush();
+            }
+        };
 
-
-    public function deleteFileAfterSend($shouldDelete=true)
-    {
-        $this->_deleteFileAfterSend = (bool)$shouldDelete;
         return $this;
     }
 
@@ -3129,6 +3675,95 @@ class HttpResponse
     public function getCallback()
     {
         return $this->callback;
+    }
+
+    public function setTargetUrl($url, $statusCode = 302)
+    {
+        if (empty($url)) {
+            throw new \InvalidArgumentException('Cannot redirect to an empty URL.');
+        }
+
+        $this->targetUrl = $url;
+
+        $this->setStatusCode((int)$statusCode);
+
+        if (301 == $this->getStatusCode() && $this->headers->has('cache-control')) {
+            $this->headers->remove('cache-control');
+        }
+
+        $this->setContent(
+            sprintf('<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <meta http-equiv="refresh" content="0;url=\'%1$s\'" />
+
+        <title>Redirecting to %1$s</title>
+    </head>
+    <body>
+        Redirecting to <a href="%1$s">%1$s</a>.
+    </body>
+</html>', htmlspecialchars($url, ENT_QUOTES, 'UTF-8')));
+
+        $this->headers->set('Location', $url);
+        $this->headers->set('Content-Type', 'text/html; charset=utf-8');
+
+        return $this;
+    }
+
+    public function getTargetUrl()
+    {
+        return $this->targetUrl;
+    }
+
+    public function setFile($file, $contentDisposition = null, $autoEtag = false, $autoLastModified = true)
+    {
+        if ($file && !is_readable($file)) {
+            throw new /*File*/\Exception('File must be readable.');
+        }
+
+        if ($file) {
+            $this->file = $file;
+
+            if ($autoEtag) {
+                $this->setAutoEtag();
+            }
+
+            if ($autoLastModified) {
+                $this->setAutoLastModified();
+            }
+
+            if ($contentDisposition) {
+                $this->setContentDisposition($contentDisposition);
+            }
+        } elseif ($this->file) {
+            $this->file = null;
+
+            $this->headers->remove('Etag');
+
+            $this->headers->remove('Last-Modified');
+
+            $this->headers->remove('Content-Disposition');
+        }
+
+        return $this;
+    }
+
+    public function getFile()
+    {
+        return $this->file;
+    }
+
+
+    public function setChunkSize($chunkSize)
+    {
+        if ($chunkSize < 1) {
+            throw new \InvalidArgumentException('The chunk size of a BinaryFileResponse cannot be less than 1.');
+        }
+
+        $this->chunkSize = $chunkSize;
+
+        return $this;
     }
 
     public function setAutoLastModified()
@@ -3152,7 +3787,8 @@ class HttpResponse
         }
 
         if ('' === $filenameFallback && (!preg_match('/^[\x20-\x7e]*$/', $filename) || false !== strpos($filename, '%'))) {
-            $encoding = mb_detect_encoding($filename, null, true) ?: '8bit';
+            $enc = mb_detect_encoding($filename, null, true);
+            $encoding = $enc ? $enc : '8bit';
 
             for ($i = 0, $filenameLength = mb_strlen($filename, $encoding); $i < $filenameLength; ++$i) {
                 $char = mb_substr($filename, $i, 1, $encoding);
@@ -3171,47 +3807,28 @@ class HttpResponse
         return $this;
     }
 
-    public function getTargetUrl()
+    public static function enableXSendfileTypeHeader($enable = true)
     {
-        return $this->targetUrl;
+        self::$trustXSendfileTypeHeader = (bool)$enable;
     }
 
-    public function setTargetUrl($url, $statusCode=302)
+    public function deleteFileAfterSend($shouldDelete = true)
     {
-        if (empty($url)) {
-            throw new \InvalidArgumentException('Cannot redirect to an empty URL.');
-        }
-
-        $this->targetUrl = $url;
-
-        $this->setStatusCode( (int)$statusCode );
-
-        if (301 == $this->getStatusCode() && $this->headers->has('cache-control')) {
-            $this->headers->remove('cache-control');
-        }
-
-        $this->setContent(
-            sprintf('<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="UTF-8" />
-        <meta http-equiv="refresh" content="0;url=%1$s" />
-
-        <title>Redirecting to %1$s</title>
-    </head>
-    <body>
-        Redirecting to <a href="%1$s">%1$s</a>.
-    </body>
-</html>', htmlspecialchars($url, ENT_QUOTES, 'UTF-8')));
-
-        $this->headers->set('Location', $url);
-
+        $this->_deleteFileAfterSend = (bool)$shouldDelete;
         return $this;
     }
 
-    public function getContent()
+    private function hasValidIfRangeHeader($header)
     {
-        return $this->content;
+        if ($this->getEtag() === $header) {
+            return true;
+        }
+
+        if (null === $lastModified = $this->getLastModified()) {
+            return false;
+        }
+
+        return $lastModified->format('D, d M Y H:i:s').' GMT' === $header;
     }
 
     public function setProtocolVersion(/*string*/ $version)
@@ -3228,7 +3845,7 @@ class HttpResponse
 
     public function setStatusCode(/*int*/ $code, $text = null)
     {
-        $this->statusCode = $code;
+        $this->statusCode = (int)$code;
         if ($this->isInvalid()) {
             throw new \InvalidArgumentException(sprintf('The HTTP status code "%s" is not valid.', $code));
         }
@@ -3357,6 +3974,7 @@ class HttpResponse
     {
         if ($this->isFresh()) {
             $this->headers->set('Age', $this->getMaxAge());
+            $this->headers->remove('Expires');
         }
 
         return $this;
@@ -3400,8 +4018,10 @@ class HttpResponse
             return (int) $this->headers->getCacheControlDirective('max-age');
         }
 
-        if (null !== $this->getExpires()) {
-            return (int) ($this->getExpires()->format('U') - $this->getDate()->format('U'));
+        if (null !== $expires = $this->getExpires()) {
+            $maxAge = (int) $expires->format('U') - (int) $this->getDate()->format('U');
+
+            return max($maxAge, 0);
         }
 
         return null;
@@ -3414,10 +4034,23 @@ class HttpResponse
         return $this;
     }
 
+    public function setStaleIfError(/*int*/ $value)
+    {
+        $this->headers->addCacheControlDirective('stale-if-error', (int)$value);
+
+        return $this;
+    }
+
+    public function setStaleWhileRevalidate(/*int*/ $value)
+    {
+        $this->headers->addCacheControlDirective('stale-while-revalidate', (int)$value);
+
+        return $this;
+    }
     public function setSharedMaxAge(/*int*/ $value)
     {
         $this->setPublic();
-        $this->headers->addCacheControlDirective('s-maxage', $value);
+        $this->headers->addCacheControlDirective('s-maxage', (int)$value);
 
         return $this;
     }
@@ -3426,19 +4059,19 @@ class HttpResponse
     {
         $maxAge = $this->getMaxAge();
 
-        return null !== $maxAge ? $maxAge - $this->getAge() : null;
+        return null !== $maxAge ? max($maxAge - $this->getAge(), 0) : null;
     }
 
     public function setTtl(/*int*/ $seconds)
     {
-        $this->setSharedMaxAge($this->getAge() + $seconds);
+        $this->setSharedMaxAge($this->getAge() + (int)$seconds);
 
         return $this;
     }
 
     public function setClientTtl(/*int*/ $seconds)
     {
-        $this->setMaxAge($this->getAge() + $seconds);
+        $this->setMaxAge($this->getAge() + (int)$seconds);
 
         return $this;
     }
@@ -3488,7 +4121,7 @@ class HttpResponse
 
     public function setCache(/*array*/ $options)
     {
-        if ($diff = array_diff(array_keys($options), array('etag', 'last_modified', 'max_age', 's_maxage', 'private', 'public', 'immutable'))) {
+        if ($diff = array_diff(array_keys($options), array(self::HTTP_RESPONSE_CACHE_CONTROL_DIRECTIVES))) {
             throw new \InvalidArgumentException(sprintf('HttpResponse does not support the following options: "%s".', implode('", "', array_values($diff))));
         }
 
@@ -3506,6 +4139,24 @@ class HttpResponse
 
         if (isset($options['s_maxage'])) {
             $this->setSharedMaxAge($options['s_maxage']);
+        }
+
+        if (isset($options['stale_while_revalidate'])) {
+            $this->setStaleWhileRevalidate($options['stale_while_revalidate']);
+        }
+
+        if (isset($options['stale_if_error'])) {
+            $this->setStaleIfError($options['stale_if_error']);
+        }
+
+        foreach (self::HTTP_RESPONSE_CACHE_CONTROL_DIRECTIVES as $directive => $hasValue) {
+            if (!$hasValue && isset($options[$directive])) {
+                if ($options[$directive]) {
+                    $this->headers->addCacheControlDirective(str_replace('_', '-', $directive));
+                } else {
+                    $this->headers->removeCacheControlDirective(str_replace('_', '-', $directive));
+                }
+            }
         }
 
         if (isset($options['public'])) {
@@ -3537,7 +4188,8 @@ class HttpResponse
         $this->setContent(null);
 
         // remove headers that MUST NOT be included with 304 Not Modified responses
-        foreach (array('Allow', 'Content-Encoding', 'Content-Language', 'Content-Length', 'Content-MD5', 'Content-Type', 'Last-Modified') as $header) {
+        $arr = array('Allow', 'Content-Encoding', 'Content-Language', 'Content-Length', 'Content-MD5', 'Content-Type', 'Last-Modified');
+        foreach ($arr as $header) {
             $this->headers->remove($header);
         }
 
@@ -3551,7 +4203,7 @@ class HttpResponse
 
     public function getVary()/*: array*/
     {
-        if (!$vary = $this->headers->get('Vary', null, false)) {
+        if (empty($vary = $this->headers->all('Vary'))) {
             return array();
         }
 
@@ -3580,12 +4232,26 @@ class HttpResponse
         $lastModified = $this->headers->get('Last-Modified');
         $modifiedSince = $request->headers->get('If-Modified-Since');
 
-        if ($etags = $request->getETags()) {
-            $notModified = in_array($this->getEtag(), $etags) || in_array('*', $etags);
-        }
+        if (($ifNoneMatchEtags = $request->getETags()) && (null !== $etag = $this->getEtag())) {
+            if (0 == strncmp($etag, 'W/', 2)) {
+                $etag = substr($etag, 2);
+            }
 
-        if ($modifiedSince && $lastModified) {
-            $notModified = strtotime($modifiedSince) >= strtotime($lastModified) && (!$etags || $notModified);
+            // Use weak comparison as per https://tools.ietf.org/html/rfc7232#section-3.2.
+            foreach ($ifNoneMatchEtags as $ifNoneMatchEtag) {
+                if (0 == strncmp($ifNoneMatchEtag, 'W/', 2)) {
+                    $ifNoneMatchEtag = substr($ifNoneMatchEtag, 2);
+                }
+
+                if ($ifNoneMatchEtag === $etag || '*' === $ifNoneMatchEtag) {
+                    $notModified = true;
+                    break;
+                }
+            }
+        }
+        // Only do If-Modified-Since date comparison when If-None-Match is not present as per https://tools.ietf.org/html/rfc7232#section-3.3.
+        elseif ($modifiedSince && $lastModified) {
+            $notModified = strtotime($modifiedSince) >= strtotime($lastModified);
         }
 
         if ($notModified) {
@@ -3642,7 +4308,7 @@ class HttpResponse
 
     public function isRedirect(/*string*/ $location = null)/*: bool*/
     {
-        return in_array($this->statusCode, array(201, 301, 302, 303, 307, 308)) && (null === $location ?: $location == $this->headers->get('Location'));
+        return in_array($this->statusCode, array(201, 301, 302, 303, 307, 308)) && (null === $location ? true : $location == $this->headers->get('Location'));
     }
 
     public function isEmpty()/*: bool*/
@@ -3663,6 +4329,17 @@ class HttpResponse
                 ob_end_clean();
             }
         }
+    }
+
+    public function setContentSafe(/*bool*/ $safe = true)
+    {
+        if ($safe) {
+            $this->headers->set('Preference-Applied', 'safe');
+        } elseif ('safe' === $this->headers->get('Preference-Applied')) {
+            $this->headers->remove('Preference-Applied');
+        }
+
+        $this->setVary('Prefer', false);
     }
 
     protected function ensureIEOverSSLCompatibility(/*Request*/ $request)

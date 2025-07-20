@@ -2,7 +2,7 @@
 /**
 *
 * Tiny, super-simple but versatile quasi-MVC web framework for PHP
-* @version 1.21.1
+* @version 1.22.0
 * https://github.com/foo123/tico
 *
 */
@@ -36,10 +36,38 @@ class TicoValue
         return $this->v;
     }
 }
+class TicoParams
+{
+    private $datao = null;
+    private $datai = null;
 
+    public function __construct($data = array(), $orig_key = null)
+    {
+        $this->datao = array();
+        $this->datai = array();
+        foreach ($data as $key => $val)
+        {
+            if ($key === $orig_key) continue;
+            $this->datao[$key] = $val;
+        }
+        if (!empty($orig_key) && isset($data[$orig_key]))
+        {
+            foreach ((array)$data[$orig_key] as $key => $val)
+            {
+                if (!isset($this->datao[$key])) continue;
+                $this->datai[$key] = $val;
+            }
+        }
+    }
+
+    public function get($key, $default = null, $original = false)
+    {
+        return $original ? (isset($this->datai[$key]) ? $this->datai[$key] : $default) : (isset($this->datao[$key]) ? $this->datao[$key] : $default);
+    }
+}
 class Tico
 {
-    const VERSION = '1.21.1';
+    const VERSION = '1.22.0';
 
     public $Loader = null;
     public $Router = null;
@@ -71,6 +99,7 @@ class Tico
         // set some default options
         $this->option('webroot', $this->BasePath);
         $this->option('case_insensitive_uris', true);
+        $this->option('route_params_object', false);
         $this->option('views', array(''));
 
         $this->variable('cache', empty($_GET) && empty($_POST)); // page w/ request params not cached
@@ -505,13 +534,6 @@ class Tico
 
             case 'file':
                 $file = $data;
-                if (!$this->response()->headers->has('Content-Type'))
-                {
-                    $file_type = mime_content_type($file);
-                    if (empty($file_type)) $file_type = 'application/octet-stream';
-                    $this->response()->headers->set('Content-Type', $file_type);
-                }
-                //$this->response->headers->set('Content-Length', filesize($file));
                 $this->variable('tico_set_file__file', $file);
                 if ($headers && isset($headers['deleteFileAfterSend']))
                 {
@@ -523,11 +545,23 @@ class Tico
                     $this->variable('tico_set_file__deleteFileAfterSend', false);
                 }
                 $this->hook('tico_set_file');
-                $this->response()->setFile($this->variable('tico_set_file__file'));
-                if ($this->variable('tico_set_file__deleteFileAfterSend')) $this->response()->deleteFileAfterSend(true);
+                $file = $this->variable('tico_set_file__file');
+                $deleteFileAfterSend = $this->variable('tico_set_file__deleteFileAfterSend');
                 $this->variable('tico_set_file__file', null);
                 $this->variable('tico_set_file__deleteFileAfterSend', null);
-                $this->variable('cache', false); // files not cached
+                if ($file)
+                {
+                    if (!$this->response()->headers->has('Content-Type'))
+                    {
+                        $file_type = mime_content_type($file);
+                        if (empty($file_type)) $file_type = 'application/octet-stream';
+                        $this->response()->headers->set('Content-Type', $file_type);
+                    }
+                    //$this->response->headers->set('Content-Length', filesize($file));
+                    $this->response()->setFile($file);
+                    if ($deleteFileAfterSend) $this->response()->deleteFileAfterSend(true);
+                    $this->variable('cache', false); // files not cached
+                }
                 break;
 
             default:
@@ -600,6 +634,7 @@ class Tico
 
     public function cached()
     {
+        if (!$this->request()->isMethodCacheable() || !$this->response()->isCacheable()) return null;
         $response = $this->response();
         $content = (string)$response->getContent();
         return strlen($content) ? serialize(array(
@@ -1017,6 +1052,13 @@ class Tico
         return $method;
     }
 
+    public function requestParam($key, $default = null, $caseInsensitive = null)
+    {
+        if (null === $caseInsensitive) $caseInsensitive = $this->option('case_insensitive_uris');
+        $this->request();
+        return $caseInsensitive ? $this->request()->queryci->get(strtolower($key), $default) : $this->request()->query->get($key, $default);
+    }
+
     public function middleware($middleware, $type = 'before')
     {
         if (is_callable($middleware))
@@ -1065,7 +1107,8 @@ class Tico
                     $route['name'] = $router->key . $route['route'];
                 }
                 $route['handler'] = function($route) use ($handler) {
-                    return call_user_func($handler, $route['data']);
+                    $params = $this->option('route_params_object') ? new TicoParams($route['data'], $this->option('original_params_key')) : $route['data'];
+                    return call_user_func($handler, $params);
                 };
                 $router->on($route);
             }
