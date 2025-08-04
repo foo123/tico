@@ -99,6 +99,7 @@ class Tico
         // set some default options
         $this->option('webroot', $this->BasePath);
         $this->option('case_insensitive_uris', true);
+        $this->option('original_params_key', ':');
         $this->option('route_params_object', false);
         $this->option('views', array(''));
 
@@ -634,7 +635,7 @@ class Tico
 
     public function cached()
     {
-        if (!$this->request()->isMethodCacheable() || !$this->response()->isCacheable()) return null;
+        if (!$this->request()->isMethodCacheable() /*|| !$this->response()->isCacheable()*/) return null;
         $response = $this->response();
         $content = (string)$response->getContent();
         return strlen($content) ? serialize(array(
@@ -1107,7 +1108,7 @@ class Tico
                     $route['name'] = $router->key . $route['route'];
                 }
                 $route['handler'] = function($route) use ($handler) {
-                    $params = $this->option('route_params_object') ? new TicoParams($route['data'], $this->option('original_params_key')) : $route['data'];
+                    $params = $this->option('route_params_object') ? new TicoParams($route['data'], $this->option('case_insensitive_uris') ? $this->option('original_params_key') : null) : $route['data'];
                     return call_user_func($handler, $params);
                 };
                 $router->on($route);
@@ -1295,7 +1296,7 @@ class Tico
             $requestMethod = $this->requestMethod();
             $requestPathOrig = $this->requestPath(true, false);
             $requestPath = $caseInsensitiveUris ? strtolower($requestPathOrig) : $requestPathOrig;
-            $originalParamsKey = $this->option('original_params_key'); // default null
+            $originalParamsKey = $caseInsensitiveUris ? $this->option('original_params_key') : null;
 
             if ((1 < strlen($requestPort)) && isset($this->SubdomainsPorts[$requestPort]))
             {

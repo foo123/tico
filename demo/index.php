@@ -15,7 +15,6 @@ tico('http://localhost:8000', ROOT)
     ->option('webroot', ROOT)
     ->option('case_insensitive_uris', true)
     ->option('route_params_object', true)
-    ->option('original_params_key', 'ORIG')
     ->option('views', [tico()->path('/views')])
     //->set('model', new MyModel()) // simple dependency injection container
     ->set('model', function() {
