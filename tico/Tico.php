@@ -635,7 +635,7 @@ class Tico
 
     public function cached()
     {
-        if (!$this->request()->isMethodCacheable() /*|| !$this->response()->isCacheable()*/) return null;
+        //if (!$this->request()->isMethodCacheable() /*|| !$this->response()->isCacheable()*/) return null;
         $response = $this->response();
         $content = (string)$response->getContent();
         return strlen($content) ? serialize(array(
