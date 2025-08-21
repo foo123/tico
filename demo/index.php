@@ -13,9 +13,13 @@ class MyModel
 
 tico('http://localhost:8000', ROOT)
     ->option('webroot', ROOT)
-    ->option('case_insensitive_uris', true)
-    ->option('route_params_object', true)
     ->option('views', [tico()->path('/views')])
+    ->option('normalized_uris', true)
+    ->option('normalize_uri', function($part) {
+        $part = str_replace(array('ά', 'έ', 'ή', 'ί', 'ϊ', 'ΐ', 'ό', 'ύ', 'ϋ', 'ΰ', 'ώ', 'ς'), array('α', 'ε', 'η', 'ι', 'ι', 'ι', 'ο', 'υ', 'υ', 'υ', 'ω', 'σ'), mb_strtolower($part, 'UTF-8'));
+        return $part;
+    })
+    ->option('route_params_object', true)
     //->set('model', new MyModel()) // simple dependency injection container
     ->set('model', function() {
         return new MyModel();
@@ -79,7 +83,7 @@ or
     );
 
 })
-->on(array('get', 'post'), '/hello/{:msg}', function($params) {
+->on(['get', 'post'], '/hello/{:msg}', function($params) {
 
     $session = tico()->request()->getSession();
     $session->set('count', $session->get('count')+1);
@@ -93,10 +97,36 @@ or
     );
 
 })
+// non-ascii/utf8 normalized uris
+->on(['get', 'post'], '/γεια/{:msg}', function($params) {
+
+    $session = tico()->request()->getSession();
+    $session->set('count', $session->get('count')+1);
+    tico()->output(
+        array(
+            'title' => 'Γειά!',
+            'msg' => ('msg:'.$params->get('msg', '&lt;empty&gt;', true)).(',param:'.tico()->requestParam('param', '&lt;empty&gt;')) /*in original case*/,
+            'count'=> $session->get('count')
+        ),
+        'hello.tpl.php'
+    );
+
+})
 ->onGroup('/foo', function() {
 
     // group routes under common prefix
     tico()
+        // /foo
+        ->on('*', '/', function() {
+            tico()->output(
+                array(
+                    'title' => 'Group Route',
+                    'msg' => 'Group Route /foo',
+                    'count'=> 0
+                ),
+                'hello.tpl.php'
+            );
+        })
         // /foo/moo
         ->on('*', '/moo', function() {
             tico()->output(

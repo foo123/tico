@@ -28,8 +28,11 @@ class MyModel
 tico('http://localhost:8000', ROOT)
     // some options
     ->option('webroot', ROOT) // default
-    ->option('case_insensitive_uris', true) // default
     ->option('views', [tico()->path('/views')])
+    ->option('normalized_uris', true) // default
+    ->option('normalize_uri', function($part) {
+        return str_replace(array('ά','έ','ή','ί','ϊ','ΐ','ό','ύ','ϋ','ΰ','ώ','ς'), array('α','ε','η','ι','ι','ι','ο','υ','υ','υ','ω','σ'), mb_strtolower($part, 'UTF-8'));
+    })
     /*->option('tpl_render', function($tpl, $data, $viewsFolders) {
         // custom template renderer
         return MyFancyTpl::render($tpl, $data);
@@ -158,7 +161,22 @@ or
     tico()->output(
         array(
             'title' => 'Hello!',
-            'msg' => $params['msg'],
+            'msg' => $params[':']['msg'], // original msg
+            'count'=> $session->get('count')
+        ),
+        'hello.tpl.php'
+    );
+
+})
+// non-ascii/unicode normalized uris
+->on(['get', 'post'], '/γεια/{:msg}', function($params) {
+
+    $session = tico()->request()->getSession();
+    $session->set('count', $session->get('count')+1);
+    tico()->output(
+        array(
+            'title' => 'Γειά!',
+            'msg' => $params[':']['msg'], // original msg
             'count'=> $session->get('count')
         ),
         'hello.tpl.php'
@@ -169,6 +187,17 @@ or
 ->onGroup('/foo', function() {
 
     tico()
+        // /foo
+        ->on('*', '/', function() {
+            tico()->output(
+                array(
+                    'title' => 'Group Route',
+                    'msg' => 'Group Route /foo',
+                    'count'=> 0
+                ),
+                'hello.tpl.php'
+            );
+        })
         // /foo/moo
         ->on('*', '/moo', function() {
             tico()->output(
@@ -265,6 +294,7 @@ or
 * [SimpleCaptcha](https://github.com/foo123/simple-captcha) a simple, image-based, mathematical captcha with increasing levels of difficulty for PHP, JavaScript, Python
 * [Dromeo](https://github.com/foo123/Dromeo) a flexible, and powerful agnostic router for PHP, JavaScript, Python
 * [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for PHP, JavaScript, Python
+* [Localizer](https://github.com/foo123/Localizer) a simple and versatile localization class (l10n) for PHP, JavaScript, Python
 * [Importer](https://github.com/foo123/Importer) simple class &amp; dependency manager and loader for PHP, JavaScript, Python
 * [Contemplate](https://github.com/foo123/Contemplate) a fast and versatile isomorphic template engine for PHP, JavaScript, Python
 * [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets, made as simple as possible, both client and server, both desktop and mobile, can be used as (template) plugins and/or standalone for PHP, JavaScript, Python (can be used as [plugins for Contemplate](https://github.com/foo123/Contemplate/blob/master/src/js/plugins/plugins.txt))

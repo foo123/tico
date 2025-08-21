@@ -11,60 +11,6 @@ if (!class_exists('Tico', false))
 {
 define('TICO', dirname(__FILE__));
 
-class TicoValue
-{
-    private $v = null;
-    private $isLoaded = false;
-
-    public function __construct($value, $asIs = false)
-    {
-        $this->v = $value;
-        $this->isLoaded = (bool)$asIs;
-    }
-
-    public function value()
-    {
-        if (!$this->isLoaded)
-        {
-            $this->isLoaded = true;
-            // lazy factory getter, execute only once and return whatever it returns
-            if (is_callable($this->v) && (!is_object($this->v) || ($this->v instanceof Closure)))
-            {
-                $this->v = @call_user_func($this->v);
-            }
-        }
-        return $this->v;
-    }
-}
-class TicoParams
-{
-    private $datao = null;
-    private $datai = null;
-
-    public function __construct($data = array(), $orig_key = null)
-    {
-        $this->datao = array();
-        $this->datai = array();
-        foreach ($data as $key => $val)
-        {
-            if ($key === $orig_key) continue;
-            $this->datao[$key] = $val;
-        }
-        if (!empty($orig_key) && isset($data[$orig_key]))
-        {
-            foreach ((array)$data[$orig_key] as $key => $val)
-            {
-                if (!isset($this->datao[$key])) continue;
-                $this->datai[$key] = $val;
-            }
-        }
-    }
-
-    public function get($key, $default = null, $original = false)
-    {
-        return $original ? (isset($this->datai[$key]) ? $this->datai[$key] : $default) : (isset($this->datao[$key]) ? $this->datao[$key] : $default);
-    }
-}
 class Tico
 {
     const VERSION = '1.22.0';
@@ -99,79 +45,15 @@ class Tico
         // set some default options
         $this->option('webroot', $this->BasePath);
         $this->option('case_insensitive_uris', true);
+        $this->option('normalized_uris', null);
+        $this->option('normalize_uri', null);
         $this->option('original_params_key', ':');
+        $this->option('route_pattern_delimiters', array('{', '}', '%', '%', ':'));
+        $this->option('route_patterns', array());
         $this->option('route_params_object', false);
         $this->option('views', array(''));
 
         $this->variable('cache', empty($_GET) && empty($_POST)); // page w/ request params not cached
-    }
-
-    protected function _fixServerVars()
-    {
-        if (is_null($this->_k))
-        {
-            $default_server_values = array(
-                'SERVER_SOFTWARE' => '',
-                'REQUEST_URI' => '',
-            );
-
-            $_SERVER = array_merge($default_server_values, $_SERVER);
-
-            // Fix for IIS when running with PHP ISAPI
-            if (empty($_SERVER['REQUEST_URI']) || (PHP_SAPI != 'cgi-fcgi' && preg_match('/^Microsoft-IIS\//', $_SERVER['SERVER_SOFTWARE'])))
-            {
-                // IIS Mod-Rewrite
-                if (isset($_SERVER['HTTP_X_ORIGINAL_URL']))
-                {
-                    $_SERVER['REQUEST_URI'] = $_SERVER['HTTP_X_ORIGINAL_URL'];
-                }
-                // IIS Isapi_Rewrite
-                elseif (isset($_SERVER['HTTP_X_REWRITE_URL']))
-                {
-                    $_SERVER['REQUEST_URI'] = $_SERVER['HTTP_X_REWRITE_URL'];
-                }
-                else
-                {
-                    // Use ORIG_PATH_INFO if there is no PATH_INFO
-                    if (!isset($_SERVER['PATH_INFO']) && isset($_SERVER['ORIG_PATH_INFO']))
-                        $_SERVER['PATH_INFO'] = $_SERVER['ORIG_PATH_INFO'];
-
-                    // Some IIS + PHP configurations puts the script-name in the path-info (No need to append it twice)
-                    if (isset($_SERVER['PATH_INFO']))
-                    {
-                        if ($_SERVER['PATH_INFO'] == $_SERVER['SCRIPT_NAME'])
-                            $_SERVER['REQUEST_URI'] = $_SERVER['PATH_INFO'];
-                        else
-                            $_SERVER['REQUEST_URI'] = $_SERVER['SCRIPT_NAME'] . $_SERVER['PATH_INFO'];
-                    }
-
-                    // Append the query string if it exists and isn't null
-                    if (!empty($_SERVER['QUERY_STRING']))
-                    {
-                        $_SERVER['REQUEST_URI'] .= '?' . $_SERVER['QUERY_STRING'];
-                    }
-                }
-            }
-
-            // Fix for PHP as CGI hosts that set SCRIPT_FILENAME to something ending in php.cgi for all requests
-            if (isset($_SERVER['SCRIPT_FILENAME']) && (strpos($_SERVER['SCRIPT_FILENAME'], 'php.cgi') == strlen($_SERVER['SCRIPT_FILENAME']) - 7))
-                $_SERVER['SCRIPT_FILENAME'] = $_SERVER['PATH_TRANSLATED'];
-
-            // Fix for Dreamhost and other PHP as CGI hosts
-            if (strpos($_SERVER['SCRIPT_NAME'], 'php.cgi') !== false)
-                unset($_SERVER['PATH_INFO']);
-
-            // Fix empty PHP_SELF
-            if (empty($_SERVER['PHP_SELF']))
-                $_SERVER['PHP_SELF'] = preg_replace('/(\?.*)?$/', '', $_SERVER["REQUEST_URI"]);
-
-            //$parts = explode('?', $_SERVER['REQUEST_URI']);
-            $uri = '/' . trim(/*$parts[0]*/$_SERVER['REQUEST_URI'], '/');
-            $port = isset($_SERVER['SERVER_PORT']) ? (':' . $_SERVER['SERVER_PORT']) : '';
-            $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : '');
-            if (strlen($port) && ($port == substr($host, -strlen($port)))) $port = '';
-            $this->_k = $host . $port . $uri;
-        }
     }
 
     public function args($argv = null)
@@ -235,6 +117,7 @@ class Tico
 
     public function env($key, $default = null, $registry = 'ANY')
     {
+        $key = (string)$key;
         $registry = explode('|', strtoupper($registry));
         $search_all = in_array('ANY', $registry);
 
@@ -266,6 +149,7 @@ class Tico
 
     public function option($key)
     {
+        $key = (string)$key;
         $args = func_get_args();
         if (1 < count($args))
         {
@@ -277,6 +161,7 @@ class Tico
 
     public function variable($key)
     {
+        $key = (string)$key;
         $args = func_get_args();
         if (1 < count($args))
         {
@@ -301,7 +186,7 @@ class Tico
         $key = (string)$key;
         if (!isset($this->Data[$key]))
         {
-            throw new InvalidArgumentException('Tico:"'.$key.'" is not set!');
+            throw new TicoException('Tico:"'.$key.'" is not set!');
         }
         return $this->Data[$key]->value();
     }
@@ -314,8 +199,8 @@ class Tico
 
     public function hook($hook/*, $handler = null, $priority = 0*/)
     {
-        $args = func_get_args();
         $hook = (string)$hook;
+        $args = func_get_args();
         if (1 < count($args))
         {
             $handler = $args[1];
@@ -380,19 +265,30 @@ class Tico
         if (true === $router)
         {
             if (!class_exists('Dromeo', false)) include(TICO . '/Dromeo.php');
-            return new Dromeo();
+            $router = new Dromeo();
+            $router->defineDelimiters($this->option('route_pattern_delimiters'));
+            foreach ($this->option('route_patterns') as $tag => $pattern)
+            {
+                $router->definePattern($tag, (string)(is_array($pattern) ? $pattern['pattern'] : $pattern), is_array($pattern) && isset($pattern['type']) ? $pattern['type'] : null);
+            }
         }
         elseif (is_string($router) && strlen($router))
         {
-            return isset($this->SubdomainsPorts[$router]) ? $this->SubdomainsPorts[$router] : null;
+            $router = isset($this->SubdomainsPorts[$router]) ? $this->SubdomainsPorts[$router] : null;
         }
         else
         {
             if ($this->Router) return $this->Router;
             if (!class_exists('Dromeo', false)) include(TICO . '/Dromeo.php');
-            $this->Router = new Dromeo();
-            return $this->Router;
+            $router = new Dromeo();
+            $router->defineDelimiters($this->option('route_pattern_delimiters'));
+            foreach ($this->option('route_patterns') as $name => $pattern)
+            {
+                $router->definePattern($name, is_array($pattern) ? $pattern[0] : $pattern, is_array($pattern) && isset($pattern[1]) ? $pattern[1] : null);
+            }
+            $this->Router = $router;
         }
+        return $router;
     }
 
     public function request(/*$req*/)
@@ -625,60 +521,6 @@ class Tico
         return $this;
     }
 
-    public function datetime($time = null)
-    {
-        if (is_null($time)) $time = time();
-        $dt = \DateTime::createFromFormat('U', $time);
-        $dt->setTimezone(new \DateTimeZone('UTC'));
-        return $dt->format('D, d M Y H:i:s').' GMT';
-    }
-
-    public function cached()
-    {
-        //if (!$this->request()->isMethodCacheable() /*|| !$this->response()->isCacheable()*/) return null;
-        $response = $this->response();
-        $content = (string)$response->getContent();
-        return strlen($content) ? serialize(array(
-            'key' => $this->_k,
-            'protocol' => 'HTTP/'.$response->getProtocolVersion(),
-            'time' => time(),
-            'status' => $response->getStatusCode(),
-            'status-text' => HttpResponse::$statusTexts[$response->getStatusCode()],
-            'content-type' => $response->headers->get('Content-Type'),
-            'content' => $content,
-        )) : null;
-    }
-
-    private function _serveCached($cached)
-    {
-        if (is_string($cached))
-        {
-            try {
-                $content = @unserialize($cached, array('allowed_classes'=>false));
-            } catch(Exception $e) {
-                $content = null;
-            }
-            if (!empty($content) && !empty($content['status']) && isset($content['content']))
-            {
-                $this->variable('tico_before_serve_cached__content_type', $content['content-type']);
-                $this->variable('tico_before_serve_cached__content', $content['content']);
-                $this->hook('tico_before_serve_cached');
-                $content['content-type'] = $this->variable('tico_before_serve_cached__content_type');
-                $content['content'] = $this->variable('tico_before_serve_cached__content');
-                $this->variable('tico_before_serve_cached__content_type', null);
-                $this->variable('tico_before_serve_cached__content', null);
-                header('Content-Type: '.$content['content-type'], true, $content['status']);
-                header('Last-Modified: '.$this->datetime($content['time']), true, $content['status']);
-                header('Date: '.$this->datetime(time()), true, $content['status']);
-                header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
-                echo $content['content'];
-                $this->hook('tico_after_serve_cached');
-                return true;
-            }
-        }
-        return false;
-    }
-
     public function redirect($uri, $code = 302)
     {
         $this->variable('tico_redirect__code', $code);
@@ -783,135 +625,6 @@ class Tico
         }
     }
 
-    public function flatten($input, $output = array(), $prefix = null)
-    {
-        if (!empty($input))
-        {
-            foreach ($input as $key => $val)
-            {
-                $name = empty($prefix) ? $key : ($prefix."[$key]");
-
-                if (is_array($val)) $output = $this->flatten($val, $output, $name);
-                else $output[$name] = $val;
-            }
-        }
-        return $output;
-    }
-
-    public function kv($input, $output = array(), $glue = '')
-    {
-        if (!empty($input))
-        {
-            foreach ($input as $key => $val)
-            {
-                $output[] = ((string)$key) . $glue . ((string)$val);
-            }
-        }
-        return $output;
-    }
-
-    public function httpCLIENT($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
-    {
-        switch (strtoupper($method))
-        {
-            case 'POST':
-            if (!empty($requestBody))
-            {
-                if (is_array($requestBody))
-                {
-                    $requestData = $requestBody;
-                }
-                else
-                {
-                    $requestData = array();
-                    @parse_str((string)$requestBody, $requestData);
-                }
-                $requestData = $this->flatten($requestData);
-                $formData = implode('', array_map(function($name, $value) {return '<input type="hidden" name="'.$name.'" value="'.$value.'" />';}, array_keys($requestData), $requestData));
-            }
-            else
-            {
-                $formData = '';
-            }
-            try {
-                @header('Content-Type: text/html; charset=UTF-8', true, 200);
-                @header('Date: '.$this->datetime(time()), true, 200);
-                echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><title>POST '.$uri.'</title></head><body onload="do_post();"><form name="post_form" id="post_form" method="post" enctype="application/x-www-form-urlencoded" action="'.$uri.'">'.$formData.'</form><script type="text/javascript">function do_post() {document.post_form.submit();}</script></body></html>');
-            } catch (Exception $e) {
-            }
-            break;
-
-            case 'GET':
-            default:
-            try {
-                @header("Location: $uri", true, 303);
-                @header('Content-Type: text/html; charset=UTF-8', true, 303);
-                @header('Date: '.$this->datetime(time()), true, 303);
-                echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><meta http-equiv="refresh" content="0; URL='.$uri.'"/><title>GET '.$uri.'</title></head><body onload="do_get();"><script type="text/javascript">function do_get() {window.location.href = "'.$uri.'";}</script></body></html>');
-            } catch (Exception $e) {
-            }
-            break;
-        }
-        return null;
-    }
-
-    public function httpCURL($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
-    {
-        if (!function_exists('curl_init')) return false;
-        $curl = curl_init($uri);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($curl, CURLOPT_HEADERFUNCTION, function($curl, $header) use (&$responseHeaders) {
-            if (is_null($responseHeaders)) $responseHeaders = array();
-            $len = strlen($header);
-            $header = explode(':', $header, 2);
-            if (count($header) >= 2)
-            {
-                $k = strtolower(trim($header[0])); $v = trim($header[1]);
-                if (!isset($responseHeaders[$k])) $responseHeaders[$k] = array($v);
-                else $responseHeaders[$k][] = $v;
-            }
-            return $len;
-        });
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $requestHeaders);
-        if ('POST' === strtoupper($method))
-        {
-            curl_setopt($curl, CURLOPT_POST, true);
-            curl_setopt($curl, CURLOPT_POSTFIELDS, $requestBody);
-        }
-        else
-        {
-            curl_setopt($curl, CURLOPT_HTTPGET, true);
-        }
-        try {
-            $responseBody = @curl_exec($curl);
-            $responseStatus = @curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        } catch (Exception $e) {
-            $responseBody = false;
-        }
-        curl_close($curl);
-        return $responseBody;
-    }
-
-    public function httpFILE($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
-    {
-        $context = stream_context_create(array(
-            "http" => array(
-                "method"        => strtoupper($method),
-                "header"        => implode("\r\n", (array)$requestHeaders),
-                "content"       => (string)$requestBody,
-                "ignore_errors" => true,
-            ),
-        ));
-        try {
-            $responseBody = @file_get_contents($uri, false, $context);
-        } catch (Exception $e) {
-            $responseBody = false;
-        }
-        if (!empty($http_response_header)) $responseHeaders = array_merge(array(), $http_response_header);
-        if (!empty($responseHeaders) && preg_match('#HTTP/\\S*\\s+(\\d{3})#', $responseHeaders[0], $m)) $responseStatus = (int)$m[1];
-        return $responseBody;
-    }
-
     public function http($method = 'get', $transport = 'server', $uri = '', $data = null, $headers = null, &$responseBody = '', &$responseStatus = 0, &$responseHeaders = null)
     {
         // TODO: support POST files ??
@@ -989,59 +702,6 @@ class Tico
         return $withquery ? $current_url_qs : $current_url;
     }
 
-    private function parseUrl($baseUrl, $defaultPath = '', $caseInsensitive = false)
-    {
-        $parts = parse_url($baseUrl);
-        $scheme = isset($parts['scheme']) ? $parts['scheme'] : 'http';
-        $host = isset($parts['host']) ? $parts['host'] : '';
-        $port = (string)(isset($parts['port']) ? $parts['port'] : '');
-        $path = isset($parts['path']) ? $parts['path'] : '';
-        if (!strlen($path)) $path = $defaultPath;
-        if ($caseInsensitive)
-        {
-            $scheme = strtolower($scheme);
-            $host = strtolower($host);
-            $path = strtolower($path);
-        }
-        return array($scheme, $host, $port, $path);
-    }
-
-    public function requestPort($onlyIfSet = false)
-    {
-        return (string)$this->request()->getPort($onlyIfSet);
-    }
-
-    public function requestSubdomain($caseInsensitive = true)
-    {
-        $currentHost = $this->request()->headers->get('HOST');
-        list($scheme, $host, $port, $path) = $this->parseUrl($this->BaseUrl, '', $caseInsensitive);
-        $subdomain = trim(preg_replace('#\.' . preg_quote($host, '#') . '$#i', '', $currentHost));
-        if ($subdomain === $currentHost) $subdomain = '';
-        if ($caseInsensitive) $subdomain = strtolower($subdomain);
-        return $subdomain;
-    }
-
-    public function requestPath($strip = true, $caseInsensitive = true)
-    {
-        $request_uri = strtok(strtok($this->request()->getRequestUri(), '?'), '#');
-
-        if ($strip)
-        {
-            list($scheme, $host, $port, $base_uri) = $this->parseUrl($this->BaseUrl, '');
-            if (strlen($base_uri) && (0 === strpos(strtolower($request_uri), strtolower($base_uri))))
-                $request_uri = substr($request_uri, strlen($base_uri));
-        }
-        // remove trailing slash
-        if ('/' === substr($request_uri, -1))
-            $request_uri = substr($request_uri, 0, -1);
-        // make sure root is / (and not empty string)
-        if ('' === $request_uri)
-            $request_uri = '/';
-
-        if ($caseInsensitive) $request_uri = strtolower($request_uri);
-        return $request_uri;
-    }
-
     public function requestMethod($allow_overide = false, $default = 'GET')
     {
         $this->request();
@@ -1053,11 +713,51 @@ class Tico
         return $method;
     }
 
-    public function requestParam($key, $default = null, $caseInsensitive = null)
+    public function requestPort($onlyIfSet = false)
     {
-        if (null === $caseInsensitive) $caseInsensitive = $this->option('case_insensitive_uris');
+        return (string)$this->request()->getPort($onlyIfSet);
+    }
+
+    public function requestSubdomain($normalized = true)
+    {
+        $currentHost = $this->request()->headers->get('HOST');
+        list($scheme, $host, $port, $path) = $this->parseUrl($this->BaseUrl, '', false);
+        $subdomain = trim(preg_replace('#\\.' . preg_quote($host, '#') . '$#i', '', $currentHost));
+        if ($subdomain === $currentHost) $subdomain = '';
+        if ($normalized) $subdomain = strtolower($subdomain);
+        return $subdomain;
+    }
+
+    public function requestParam($key, $default = null, $normalized = null)
+    {
+        if (null === $normalized)
+        {
+            $normalized = $this->option('normalized_uris');
+            if (null === $normalized) $normalized = $this->option('case_insensitive_uris');
+        }
         $this->request();
-        return $caseInsensitive ? $this->request()->queryci->get(strtolower($key), $default) : $this->request()->query->get($key, $default);
+        return $normalized ? $this->request()->queryci->get(strtolower($key), $default) : $this->request()->query->get($key, $default);
+    }
+
+    public function requestPath($strip = true, $normalized = true)
+    {
+        $request_uri = trim(strtok(strtok($this->request()->getRequestUri(), '?'), '#'));
+
+        if ($strip)
+        {
+            list($scheme, $host, $port, $base_uri) = $this->parseUrl($this->BaseUrl, '', false);
+            if (strlen($base_uri) && (0 === strpos(strtolower($request_uri), strtolower($base_uri))))
+                $request_uri = substr($request_uri, strlen($base_uri));
+        }
+        // remove trailing slash
+        if ('/' === substr($request_uri, -1))
+            $request_uri = substr($request_uri, 0, -1);
+        // make sure root is / (and not empty string)
+        if ('' === $request_uri)
+            $request_uri = '/';
+
+        if ($normalized) $request_uri = strtolower(urldecode($request_uri));
+        return $request_uri;
     }
 
     public function middleware($middleware, $type = 'before')
@@ -1108,7 +808,13 @@ class Tico
                     $route['name'] = $router->key . $route['route'];
                 }
                 $route['handler'] = function($route) use ($handler) {
-                    $params = $this->option('route_params_object') ? new TicoParams($route['data'], $this->option('case_insensitive_uris') ? $this->option('original_params_key') : null) : $route['data'];
+                    $_params = $this->variable('_tico_route__params');
+                    if (!isset($_params)) $_params = array(array(), array());
+                    $original_key = $this->option('normalized_uris') ? $this->option('original_params_key') : null;
+                    $params = $_params[0]; if ($original_key) $params[$original_key] = $_params[1];
+                    $this->variable('_tico_route__params', null);
+                    $this->variable('_tico_route__data', null);
+                    if ($this->option('route_params_object')) $params = new TicoParams($params, $original_key);
                     return call_user_func($handler, $params);
                 };
                 $router->on($route);
@@ -1239,7 +945,12 @@ class Tico
     {
         if ($this->isCli()) return false;
 
-        $this->_fixServerVars();
+        if (null === $this->option('normalized_uris'))
+        {
+            $this->option('normalized_uris', $this->option('case_insensitive_uris'));
+        }
+
+        $this->fixServerVars();
 
         // if cache enabled serve fast and early
         try
@@ -1256,7 +967,7 @@ class Tico
             $this->hook('tico_serve_cache');
             $cached = $cache->get($this->variable('tico_serve_cache__key'));
             $this->variable('tico_serve_cache__key', null);
-            if ($cached && $this->_serveCached($cached)) return true;
+            if ($cached && $this->serveCached($cached)) return true;
         }
         return false;
     }
@@ -1265,7 +976,12 @@ class Tico
     {
         if ($this->isCli()) return false;
 
-        $this->_fixServerVars();
+        if (null === $this->option('normalized_uris'))
+        {
+            $this->option('normalized_uris', $this->option('case_insensitive_uris'));
+        }
+
+        $this->fixServerVars();
 
         $this->hook('tico_before_serve');
         $this->request();
@@ -1275,61 +991,61 @@ class Tico
         if (!empty($this->Middleware->before))
         {
             $this->hook('tico_before_middleware_before');
-            $passed = false;
-            $next1 = function() use (&$next1, &$passed) {
-                static $i = -1;
-                ++$i;
-                if ($i >= count($this->Middleware->before)) $passed = true;
-                else call_user_func($this->Middleware->before[$i], $next1);
-            };
-            call_user_func($next1);
+            $this->variable('_tico_middleware__entries', $this->Middleware->before);
+            $this->variable('_tico_middleware__index', -1);
+            $this->variable('_tico_middleware__passed', false);
+            $this->middlewareRun();
+            $this->variable('_tico_middleware__entries', null);
             $this->hook('tico_after_middleware_before');
         }
 
-        if ($passed)
+        if ($this->variable('_tico_middleware__passed'))
         {
             $this->hook('tico_before_route');
-            $caseInsensitiveUris = $this->option('case_insensitive_uris');
+            $normalizedUri = $this->option('normalized_uris');
             $requestPortOrig = $this->requestPort(true);
             $requestPort = ':' . (null == $requestPortOrig ? '' : (string)$requestPortOrig);
-            $requestSubdomain = $this->requestSubdomain($caseInsensitiveUris);
+            $requestSubdomain = $this->requestSubdomain($normalizedUri);
             $requestMethod = $this->requestMethod();
             $requestPathOrig = $this->requestPath(true, false);
-            $requestPath = $caseInsensitiveUris ? strtolower($requestPathOrig) : $requestPathOrig;
-            $originalParamsKey = $caseInsensitiveUris ? $this->option('original_params_key') : null;
+            $routeData = $normalizedUri ? $this->normalizePath($requestPathOrig) : array($requestPathOrig, $requestPathOrig, $requestPathOrig, array());
+            $requestPath = $routeData[0];
+            $this->variable('_tico_route__params', array(array(), array()));
+            $this->variable('_tico_route__data', $routeData);
 
             if ((1 < strlen($requestPort)) && isset($this->SubdomainsPorts[$requestPort]))
             {
-                $this->SubdomainsPorts[$requestPort]->route($requestPath, $requestMethod, true, $requestPathOrig, $originalParamsKey);
+                $this->SubdomainsPorts[$requestPort]->route($requestPath, $requestMethod, true, array($this, 'getRouteParams'));
             }
             elseif (strlen($requestSubdomain) && isset($this->SubdomainsPorts[$requestSubdomain]))
             {
-                $this->SubdomainsPorts[$requestSubdomain]->route($requestPath, $requestMethod, true, $requestPathOrig, $originalParamsKey);
+                $this->SubdomainsPorts[$requestSubdomain]->route($requestPath, $requestMethod, true, array($this, 'getRouteParams'));
             }
             elseif ((1 < strlen($requestPort)) && isset($this->SubdomainsPorts[':*'])) // any port
             {
-                $this->SubdomainsPorts[':*']->route($requestPath, $requestMethod, true, $requestPathOrig, $originalParamsKey);
+                $this->SubdomainsPorts[':*']->route($requestPath, $requestMethod, true, array($this, 'getRouteParams'));
             }
             elseif (strlen($requestSubdomain) && isset($this->SubdomainsPorts['*'])) // any subdomain
             {
-                $this->SubdomainsPorts['*']->route($requestPath, $requestMethod, true, $requestPathOrig, $originalParamsKey);
+                $this->SubdomainsPorts['*']->route($requestPath, $requestMethod, true, array($this, 'getRouteParams'));
             }
             else // main domain/port
             {
-                $this->router()->route($requestPath, $requestMethod, true, $requestPathOrig, $originalParamsKey);
+                $this->router()->route($requestPath, $requestMethod, true, array($this, 'getRouteParams'));
             }
+            $this->variable('_tico_route__params', null);
+            $this->variable('_tico_route__data', null);
             $this->hook('tico_after_route');
         }
 
         if (!empty($this->Middleware->after))
         {
             $this->hook('tico_before_middleware_after');
-            $next2 = function() use (&$next2) {
-                static $i = -1;
-                ++$i;
-                if ($i < count($this->Middleware->after)) call_user_func($this->Middleware->after[$i], $next2);
-            };
-            call_user_func($next2);
+            $this->variable('_tico_middleware__entries', $this->Middleware->after);
+            $this->variable('_tico_middleware__index', -1);
+            $this->variable('_tico_middleware__passed', false);
+            $this->middlewareRun();
+            $this->variable('_tico_middleware__entries', null);
             $this->hook('tico_after_middleware_after');
         }
 
@@ -1366,6 +1082,415 @@ class Tico
         $this->response()->send();
         $this->hook('tico_after_serve');
         return true;
+    }
+
+    // utils ------------------------------------------------
+    public function flatten($input, $output = array(), $prefix = null)
+    {
+        if (!empty($input))
+        {
+            foreach ($input as $key => $val)
+            {
+                $name = empty($prefix) ? $key : ($prefix."[$key]");
+
+                if (is_array($val)) $output = $this->flatten($val, $output, $name);
+                else $output[$name] = $val;
+            }
+        }
+        return $output;
+    }
+
+    public function kv($input, $output = array(), $glue = '')
+    {
+        if (!empty($input))
+        {
+            foreach ($input as $key => $val)
+            {
+                $output[] = ((string)$key) . $glue . ((string)$val);
+            }
+        }
+        return $output;
+    }
+
+    public function normalizePath($requestPath)
+    {
+        if ('/' === $requestPath) return array('/', '/', '/', array());
+        $parts = explode('/', trim($requestPath, '/'));
+        $parts1 = array();
+        $parts2 = array();
+        $map = array();
+        $normalize = $this->option('normalize_uri');
+        if (!$normalize || !is_callable($normalize))
+        {
+            $normalize = null;
+        }
+        $j1 = 0; $j2 = 0; $j3 = 0;
+        foreach ($parts as $i => $part)
+        {
+            ++$j1; ++$j2; ++$j3;
+            $part1 = urldecode($part); // space encoded as '+' (browser)
+            if (preg_match('/^[ -~]+$/', $part1))
+            {
+                // ascii
+                $part2 = strtolower($part1);
+            }
+            else
+            {
+                // not ascii
+                $part2 = $normalize ? call_user_func($normalize, $part1, $i, $parts, $parts1, $parts2) : $part1;
+            }
+            $parts1[] = $part1;
+            $parts2[] = $part2;
+            $l1 = strlen($part1);
+            $l2 = strlen($part2);
+            $l3 = strlen($part);
+            $map[] = array($j2, $j2+$l2, $j1, $j1+$l1, $j3, $j3+$l3);
+            $j1 += $l1; $j2 += $l2; $j3 += $l3;
+        }
+        return array('/' . implode('/', $parts2), '/' . implode('/', $parts1), $requestPath, $map);
+    }
+
+    public function getRouteParams($key, $val, $start, $end)
+    {
+        $params = $this->variable('_tico_route__params');
+        $data = $this->variable('_tico_route__data');
+        $found = false;
+        foreach ($data[3] as $pos)
+        {
+            if ($pos[0] <= $start && $end <= $pos[1])
+            {
+                $s = $pos[2]+($start-$pos[0]);
+                $e = $pos[3]-($pos[1]-$end);
+                if ($s < $e)
+                {
+                    $params[1][$key] = substr($data[1], $s, $e-$s);
+                    $found = true;
+                }
+                break;
+            }
+        }
+        $params[0][$key] = $val;
+        if (!$found) $params[1][$key] = $val;
+        $this->variable('_tico_route__params', $params);
+        return $val;
+    }
+
+    public function middlewareRun()
+    {
+        $i = $this->variable('_tico_middleware__index');
+        ++$i; $this->variable('_tico_middleware__index', $i);
+        $middleware = $this->variable('_tico_middleware__entries');
+        if ($i < count($middleware))
+        {
+            call_user_func($middleware[$i], array($this, 'middlewareRun'));
+        }
+        else
+        {
+            $this->variable('_tico_middleware__passed', true);
+        }
+    }
+
+    public function datetime($time = null)
+    {
+        if (is_null($time)) $time = time();
+        $dt = \DateTime::createFromFormat('U', $time);
+        $dt->setTimezone(new \DateTimeZone('UTC'));
+        return $dt->format('D, d M Y H:i:s').' GMT';
+    }
+
+    public function cached()
+    {
+        //if (!$this->request()->isMethodCacheable() /*|| !$this->response()->isCacheable()*/) return null;
+        $response = $this->response();
+        $content = (string)$response->getContent();
+        return strlen($content) ? serialize(array(
+            'key' => $this->_k,
+            'protocol' => 'HTTP/'.$response->getProtocolVersion(),
+            'time' => time(),
+            'status' => $response->getStatusCode(),
+            'status-text' => HttpResponse::$statusTexts[$response->getStatusCode()],
+            'content-type' => $response->headers->get('Content-Type'),
+            'content' => $content,
+        )) : null;
+    }
+
+    protected function serveCached($cached)
+    {
+        if (is_string($cached))
+        {
+            try {
+                $content = @unserialize($cached, array('allowed_classes'=>false));
+            } catch(Exception $e) {
+                $content = null;
+            }
+            if (!empty($content) && !empty($content['status']) && isset($content['content']))
+            {
+                $this->variable('tico_before_serve_cached__content_type', $content['content-type']);
+                $this->variable('tico_before_serve_cached__content', $content['content']);
+                $this->hook('tico_before_serve_cached');
+                $content['content-type'] = $this->variable('tico_before_serve_cached__content_type');
+                $content['content'] = $this->variable('tico_before_serve_cached__content');
+                $this->variable('tico_before_serve_cached__content_type', null);
+                $this->variable('tico_before_serve_cached__content', null);
+                header('Content-Type: '.$content['content-type'], true, $content['status']);
+                header('Last-Modified: '.$this->datetime($content['time']), true, $content['status']);
+                header('Date: '.$this->datetime(time()), true, $content['status']);
+                header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
+                echo $content['content'];
+                $this->hook('tico_after_serve_cached');
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected function parseUrl($baseUrl, $defaultPath = '', $normalized = false)
+    {
+        $parts = parse_url($baseUrl);
+        $scheme = isset($parts['scheme']) ? $parts['scheme'] : 'http';
+        $host = isset($parts['host']) ? $parts['host'] : '';
+        $port = (string)(isset($parts['port']) ? $parts['port'] : '');
+        $path = isset($parts['path']) ? $parts['path'] : '';
+        if (!strlen($path)) $path = $defaultPath;
+        if ($normalized)
+        {
+            $scheme = strtolower($scheme);
+            $host = strtolower($host);
+            $path = strtolower($path);
+        }
+        return array($scheme, $host, $port, $path);
+    }
+
+    protected function fixServerVars()
+    {
+        if (is_null($this->_k))
+        {
+            $default_server_values = array(
+                'SERVER_SOFTWARE' => '',
+                'REQUEST_URI' => '',
+            );
+
+            $_SERVER = array_merge($default_server_values, $_SERVER);
+
+            // Fix for IIS when running with PHP ISAPI
+            if (empty($_SERVER['REQUEST_URI']) || (PHP_SAPI != 'cgi-fcgi' && preg_match('/^Microsoft-IIS\//', $_SERVER['SERVER_SOFTWARE'])))
+            {
+                // IIS Mod-Rewrite
+                if (isset($_SERVER['HTTP_X_ORIGINAL_URL']))
+                {
+                    $_SERVER['REQUEST_URI'] = $_SERVER['HTTP_X_ORIGINAL_URL'];
+                }
+                // IIS Isapi_Rewrite
+                elseif (isset($_SERVER['HTTP_X_REWRITE_URL']))
+                {
+                    $_SERVER['REQUEST_URI'] = $_SERVER['HTTP_X_REWRITE_URL'];
+                }
+                else
+                {
+                    // Use ORIG_PATH_INFO if there is no PATH_INFO
+                    if (!isset($_SERVER['PATH_INFO']) && isset($_SERVER['ORIG_PATH_INFO']))
+                        $_SERVER['PATH_INFO'] = $_SERVER['ORIG_PATH_INFO'];
+
+                    // Some IIS + PHP configurations puts the script-name in the path-info (No need to append it twice)
+                    if (isset($_SERVER['PATH_INFO']))
+                    {
+                        if ($_SERVER['PATH_INFO'] == $_SERVER['SCRIPT_NAME'])
+                            $_SERVER['REQUEST_URI'] = $_SERVER['PATH_INFO'];
+                        else
+                            $_SERVER['REQUEST_URI'] = $_SERVER['SCRIPT_NAME'] . $_SERVER['PATH_INFO'];
+                    }
+
+                    // Append the query string if it exists and isn't null
+                    if (!empty($_SERVER['QUERY_STRING']))
+                    {
+                        $_SERVER['REQUEST_URI'] .= '?' . $_SERVER['QUERY_STRING'];
+                    }
+                }
+            }
+
+            // Fix for PHP as CGI hosts that set SCRIPT_FILENAME to something ending in php.cgi for all requests
+            if (isset($_SERVER['SCRIPT_FILENAME']) && (strpos(strtolower($_SERVER['SCRIPT_FILENAME']), 'php.cgi') == strlen($_SERVER['SCRIPT_FILENAME']) - 7))
+                $_SERVER['SCRIPT_FILENAME'] = $_SERVER['PATH_TRANSLATED'];
+
+            // Fix for Dreamhost and other PHP as CGI hosts
+            if (strpos(strtolower($_SERVER['SCRIPT_NAME']), 'php.cgi') !== false)
+                unset($_SERVER['PATH_INFO']);
+
+            // Fix empty PHP_SELF
+            if (empty($_SERVER['PHP_SELF']))
+                $_SERVER['PHP_SELF'] = preg_replace('/(\?.*)?$/', '', $_SERVER["REQUEST_URI"]);
+
+            //$parts = explode('?', $_SERVER['REQUEST_URI']);
+            $uri = '/' . trim(/*$parts[0]*/$_SERVER['REQUEST_URI'], '/');
+            $port = isset($_SERVER['SERVER_PORT']) ? (':' . $_SERVER['SERVER_PORT']) : '';
+            $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : '');
+            if (strlen($port) && ($port == substr($host, -strlen($port)))) $port = '';
+            if ($this->option('normalized_uris'))
+            {
+                $uri = $this->normalizePath($uri);
+                $uri = $uri[0];
+            }
+            $this->_k = $host . $port . $uri;
+        }
+    }
+
+    protected function httpCLIENT($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
+    {
+        switch (strtoupper($method))
+        {
+            case 'POST':
+            if (!empty($requestBody))
+            {
+                if (is_array($requestBody))
+                {
+                    $requestData = $requestBody;
+                }
+                else
+                {
+                    $requestData = array();
+                    @parse_str((string)$requestBody, $requestData);
+                }
+                $requestData = $this->flatten($requestData);
+                $formData = implode('', array_map(function($name, $value) {return '<input type="hidden" name="'.$name.'" value="'.$value.'" />';}, array_keys($requestData), $requestData));
+            }
+            else
+            {
+                $formData = '';
+            }
+            try {
+                @header('Content-Type: text/html; charset=UTF-8', true, 200);
+                @header('Date: '.$this->datetime(time()), true, 200);
+                echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><title>POST '.$uri.'</title></head><body onload="do_post();"><form name="post_form" id="post_form" method="post" enctype="application/x-www-form-urlencoded" action="'.$uri.'">'.$formData.'</form><script type="text/javascript">function do_post() {document.post_form.submit();}</script></body></html>');
+            } catch (Exception $e) {
+            }
+            break;
+
+            case 'GET':
+            default:
+            try {
+                @header("Location: $uri", true, 303);
+                @header('Content-Type: text/html; charset=UTF-8', true, 303);
+                @header('Date: '.$this->datetime(time()), true, 303);
+                echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><meta http-equiv="refresh" content="0; URL='.$uri.'"/><title>GET '.$uri.'</title></head><body onload="do_get();"><script type="text/javascript">function do_get() {window.location.href = "'.$uri.'";}</script></body></html>');
+            } catch (Exception $e) {
+            }
+            break;
+        }
+        return null;
+    }
+
+    protected function httpCURL($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
+    {
+        if (!function_exists('curl_init')) return false;
+        $curl = curl_init($uri);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_HEADERFUNCTION, function($curl, $header) use (&$responseHeaders) {
+            if (is_null($responseHeaders)) $responseHeaders = array();
+            $len = strlen($header);
+            $header = explode(':', $header, 2);
+            if (count($header) >= 2)
+            {
+                $k = strtolower(trim($header[0])); $v = trim($header[1]);
+                if (!isset($responseHeaders[$k])) $responseHeaders[$k] = array($v);
+                else $responseHeaders[$k][] = $v;
+            }
+            return $len;
+        });
+        curl_setopt($curl, CURLOPT_HTTPHEADER, $requestHeaders);
+        if ('POST' === strtoupper($method))
+        {
+            curl_setopt($curl, CURLOPT_POST, true);
+            curl_setopt($curl, CURLOPT_POSTFIELDS, $requestBody);
+        }
+        else
+        {
+            curl_setopt($curl, CURLOPT_HTTPGET, true);
+        }
+        try {
+            $responseBody = @curl_exec($curl);
+            $responseStatus = @curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        } catch (Exception $e) {
+            $responseBody = false;
+        }
+        curl_close($curl);
+        return $responseBody;
+    }
+
+    protected function httpFILE($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
+    {
+        $context = stream_context_create(array(
+            "http" => array(
+                "method"        => strtoupper($method),
+                "header"        => implode("\r\n", (array)$requestHeaders),
+                "content"       => (string)$requestBody,
+                "ignore_errors" => true,
+            ),
+        ));
+        try {
+            $responseBody = @file_get_contents($uri, false, $context);
+        } catch (Exception $e) {
+            $responseBody = false;
+        }
+        if (!empty($http_response_header)) $responseHeaders = array_merge(array(), $http_response_header);
+        if (!empty($responseHeaders) && preg_match('#HTTP/\\S*\\s+(\\d{3})#', $responseHeaders[0], $m)) $responseStatus = (int)$m[1];
+        return $responseBody;
+    }
+}
+class TicoException extends Exception
+{
+}
+class TicoValue
+{
+    private $v = null;
+    private $isLoaded = false;
+
+    public function __construct($value, $asIs = false)
+    {
+        $this->v = $value;
+        $this->isLoaded = (bool)$asIs;
+    }
+
+    public function value()
+    {
+        if (!$this->isLoaded)
+        {
+            $this->isLoaded = true;
+            // lazy factory getter, execute only once and return whatever it returns
+            if (is_callable($this->v) && (!is_object($this->v) || ($this->v instanceof Closure)))
+            {
+                $this->v = @call_user_func($this->v);
+            }
+        }
+        return $this->v;
+    }
+}
+class TicoParams
+{
+    private $datao = null;
+    private $datai = null;
+
+    public function __construct($data = array(), $orig_key = null)
+    {
+        $this->datao = array();
+        $this->datai = array();
+        foreach ($data as $key => $val)
+        {
+            if ($key === $orig_key) continue;
+            $this->datao[$key] = $val;
+        }
+        if (!empty($orig_key) && isset($data[$orig_key]))
+        {
+            foreach ((array)$data[$orig_key] as $key => $val)
+            {
+                if (!isset($this->datao[$key])) continue;
+                $this->datai[$key] = $val;
+            }
+        }
+    }
+
+    public function get($key, $default = null, $original = false)
+    {
+        return $original ? (isset($this->datai[$key]) ? $this->datai[$key] : $default) : (isset($this->datao[$key]) ? $this->datao[$key] : $default);
     }
 }
 function tico($baseUrl = '', $basePath = '')

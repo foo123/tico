@@ -3,13 +3,16 @@
 *
 *   Dromeo
 *   Simple and Flexible Pattern Routing Framework for PHP, JavaScript, Python
-*   @version: 1.2.0
+*   @version: 1.3.0
 *
 *   https://github.com/foo123/Dromeo
 *
 **/
 if (!class_exists('Dromeo', false))
 {
+class DromeoException extends Exception
+{
+}
 class DromeoRoute
 {
     private $__args__ = null;
@@ -100,7 +103,7 @@ class DromeoRoute
         $strict = true === $strict;
         if (!$this->isParsed) $this->parse(); // lazy init
         $tpl = $this->tpl;
-        for($i=0,$l=count($tpl); $i<$l; ++$i)
+        for ($i=0,$l=count($tpl); $i<$l; ++$i)
         {
             if (is_string($tpl[$i]))
             {
@@ -116,20 +119,30 @@ class DromeoRoute
                     }
                     else
                     {
-                        throw new RuntimeException('Dromeo: Route "'.$this->name.'" (Pattern: "'.$this->route.'") missing parameter "'.$tpl[$i]->name.'"!');
+                        throw new DromeoException('Dromeo: Route "'.$this->name.'" (Pattern: "'.$this->route.'") missing parameter "'.$tpl[$i]->name.'"!');
                     }
                 }
                 else
                 {
-                    $param = (string)$params[$tpl[$i]->name];
-                    if ($strict && !preg_match($tpl[$i]->re,$param, $m))
+                    $param = $params[$tpl[$i]->name];
+                    if (!is_array($param)) $param = array($param);
+                    $param = array_map('strval', $param);
+                    if ($strict && !preg_match($tpl[$i]->re, $param[0], $m))
                     {
-                        throw new RuntimeException('Dromeo: Route "'.$this->name.'" (Pattern: "'.$this->route.'") parameter "'.$tpl[$i]->name.'" value "'.$param.'" does not match pattern!');
+                        throw new DromeoException('Dromeo: Route "'.$this->name.'" (Pattern: "'.$this->route.'") parameter "'.$tpl[$i]->name.'" value "'.$param[0].'" does not match pattern!');
                     }
                     $part = $tpl[$i]->tpl;
-                    for($j=0,$k=count($part); $j<$k; ++$j)
+                    for ($j=0,$p=0,$k=count($part); $j<$k; ++$j)
                     {
-                        $out .= true === $part[$j] ? $param : $part[$j];
+                        if (true === $part[$j])
+                        {
+                            $out .= (isset($param[$p]) ? $param[$p] : $param[0]);
+                            ++$p;
+                        }
+                        else
+                        {
+                            $out .= $part[$j];
+                        }
                     }
                 }
             }
@@ -137,13 +150,11 @@ class DromeoRoute
         return $out;
     }
 
-    public function sub($match, &$data, $type = null, $originalInput = null, $originalKey = null)
+    public function sub($match, &$data, $type = null, $getter = null)
     {
         if (!$this->isParsed || $this->literal) return $this;
         $givenInput = is_array($match[0]) ? $match[0][0] : $match[0];
-        $isDifferentInput = is_string($originalInput) && ($originalInput !== $givenInput);
-        $hasOriginal = is_string($originalKey);
-        $odata = $hasOriginal ? array() : null;
+        $hasGetter = is_callable($getter);
         foreach ($this->captures as $v => $g)
         {
             $groupIndex = $g[0];
@@ -153,17 +164,24 @@ class DromeoRoute
                 if (is_array($match[$groupIndex]))
                 {
                     if (!strlen($match[$groupIndex][0])) continue;
-                    // if original input is given,
-                    // get match from original input (eg with original case)
                     $matchedValue = $match[$groupIndex][0];
-                    $matchedOriginalValue = $isDifferentInput ? substr($originalInput, $match[$groupIndex][1], strlen($matchedValue)) : $matchedValue;
+                    if ($hasGetter)
+                    {
+                        // if getter is given,
+                        // get true match from getter (eg with original case)
+                        $matchedValueTrue = strval(call_user_func($getter, $v, $matchedValue, $match[$groupIndex][1], $match[$groupIndex][1]+strlen($matchedValue), $givenInput));
+                    }
+                    else
+                    {
+                        // else what matched
+                        $matchedValueTrue = $matchedValue;
+                    }
                 }
                 else
                 {
                     if (!strlen($match[$groupIndex])) continue;
-                    // else what matched
                     $matchedValue = $match[$groupIndex];
-                    $matchedOriginalValue = $matchedValue;
+                    $matchedValueTrue = $matchedValue;
                 }
 
                 if ($type && isset($type[$v]))
@@ -171,132 +189,30 @@ class DromeoRoute
                     $typecaster = $type[$v];
                     if (is_string($typecaster) && isset(Dromeo::$TYPES[$typecaster]))
                         $typecaster = Dromeo::$TYPES[$typecaster];
-                    $data[$v] = is_callable($typecaster) ? call_user_func($typecaster, $matchedValue) : $matchedValue;
-                    if ($hasOriginal) $odata[$v] = is_callable($typecaster) ? call_user_func($typecaster, $matchedOriginalValue) : $matchedOriginalValue;
+                    $data[$v] = is_callable($typecaster) ? call_user_func($typecaster, $matchedValueTrue) : $matchedValueTrue;
                 }
                 elseif ($groupTypecaster)
                 {
                     $typecaster = $groupTypecaster;
-                    $data[$v] = is_callable($typecaster) ? call_user_func($typecaster, $matchedValue) : $matchedValue;
-                    if ($hasOriginal) $odata[$v] = is_callable($typecaster) ? call_user_func($typecaster, $matchedOriginalValue) : $matchedOriginalValue;
+                    $data[$v] = is_callable($typecaster) ? call_user_func($typecaster, $matchedValueTrue) : $matchedValueTrue;
                 }
                 else
                 {
-                    $data[$v] = $matchedValue;
-                    if ($hasOriginal) $odata[$v] = $matchedOriginalValue;
+                    $data[$v] = $matchedValueTrue;
                 }
             }
             elseif (!isset($data[$v]))
             {
                 $data[$v] = null;
-                if ($hasOriginal) $odata[$v] = null;
-            }
-            elseif ($hasOriginal)
-            {
-                $odata[$v] = $data[$v];
             }
         }
-        if ($hasOriginal) $data[(string)$originalKey] = $odata;
         return $this;
     }
 }
 
 class Dromeo
 {
-    const VERSION = "1.2.0";
-
-    // http://en.wikipedia.org/wiki/List_of_HTTP_status_codes
-    public static $HTTP_STATUS = array(
-    // 1xx Informational
-     100=> "Continue"
-    ,101=> "Switching Protocols"
-    ,102=> "Processing"
-    ,103=> "Early Hints"
-
-    // 2xx Success
-    ,200=> "OK"
-    ,201=> "Created"
-    ,202=> "Accepted"
-    ,203=> "Non-Authoritative Information"
-    ,204=> "No Content"
-    ,205=> "Reset Content"
-    ,206=> "Partial Content"
-    ,207=> "Multi-Status"
-    ,208=> "Already Reported"
-    ,226=> "IM Used"
-
-    // 3xx Redirection
-    ,300=> "Multiple Choices"
-    ,301=> "Moved Permanently"
-    ,302=> "Found" //Previously "Moved temporarily"
-    ,303=> "See Other"
-    ,304=> "Not Modified"
-    ,305=> "Use Proxy"
-    ,306=> "Switch Proxy"
-    ,307=> "Temporary Redirect"
-    ,308=> "Permanent Redirect"
-
-    // 4xx Client Error
-    ,400=> "Bad Request"
-    ,401=> "Unauthorized"
-    ,402=> "Payment Required"
-    ,403=> "Forbidden"
-    ,404=> "Not Found"
-    ,405=> "Method Not Allowed"
-    ,406=> "Not Acceptable"
-    ,407=> "Proxy Authentication Required"
-    ,408=> "Request Timeout"
-    ,409=> "Conflict"
-    ,410=> "Gone"
-    ,411=> "Length Required"
-    ,412=> "Precondition Failed"
-    ,413=> "Request Entity Too Large"
-    ,414=> "Request-URI Too Long"
-    ,415=> "Unsupported Media Type"
-    ,416=> "Requested Range Not Satisfiable"
-    ,417=> "Expectation Failed"
-    ,418=> "I'm a teapot"
-    ,419=> "Authentication Timeout"
-    ,422=> "Unprocessable Entity"
-    ,423=> "Locked"
-    ,424=> "Failed Dependency"
-    ,426=> "Upgrade Required"
-    ,428=> "Precondition Required"
-    ,429=> "Too Many Requests"
-    ,431=> "Request Header Fields Too Large"
-    ,440=> "Login Timeout"
-    ,444=> "No Response"
-    ,449=> "Retry With"
-    ,450=> "Blocked by Windows Parental Controls"
-    ,451=> "Unavailable For Legal Reasons"
-    ,494=> "Request Header Too Large"
-    ,495=> "Cert Error"
-    ,496=> "No Cert"
-    ,497=> "HTTP to HTTPS"
-    ,498=> "Token expired/invalid"
-    ,499=> "Client Closed Request"
-
-    // 5xx Server Error
-    ,500=> "Internal Server Error"
-    ,501=> "Not Implemented"
-    ,502=> "Bad Gateway"
-    ,503=> "Service Unavailable"
-    ,504=> "Gateway Timeout"
-    ,505=> "HTTP Version Not Supported"
-    ,506=> "Variant Also Negotiates"
-    ,507=> "Insufficient Storage"
-    ,508=> "Loop Detected"
-    ,509=> "Bandwidth Limit Exceeded"
-    ,510=> "Not Extended"
-    ,511=> "Network Authentication Required"
-    ,520=> "Origin Error"
-    ,521=> "Web server is down"
-    ,522=> "Connection timed out"
-    ,523=> "Proxy Declined Request"
-    ,524=> "A timeout occurred"
-    ,598=> "Network read timeout error"
-    ,599=> "Network connect timeout error"
-    );
+    const VERSION = "1.3.0";
 
     private static $_patternOr = '/^([^|]+\\|.+)$/';
     private static $_group = '/\\((\\d+)\\)$/';
@@ -421,6 +337,7 @@ class Dromeo
         $this->_patterns = array();
         $this->definePattern('ALPHA',      '[a-zA-Z\\-_]+');
         $this->definePattern('ALNUM',      '[a-zA-Z0-9\\-_]+');
+        $this->definePattern('ASCII',      '[ -~]+');
         $this->definePattern('NUMBR',      '[0-9]+');
         $this->definePattern('INT',        '[0-9]+',          'INT');
         $this->definePattern('PART',       '[^\\/?#]+');
@@ -429,11 +346,12 @@ class Dromeo
         $this->definePattern('FRAGMENT',   '#[^?#]+');
         $this->definePattern('URLENCODED', '[^\\/?#]+',       'URLENCODED');
         $this->definePattern('ALL',        '.+');
+        $this->definePattern('ANY',        '[\\s\\S]+');
         $this->_routes = array();
         $this->_named_routes = array();
         $this->_fallback = false;
         $this->_top = $top instanceof Dromeo ? $top : $this;
-        $this->key = $this === $this->_top ? '' : $this->_top->key . (string)$group;
+        $this->key = $this === $this->_top ? '' : ($this->_top->key . (string)$group);
         $this->_prefix = (string)$prefix;
     }
 
@@ -557,34 +475,6 @@ class Dromeo
     public function build($baseUrl, $query = null, $hash = null, $q = '?', $h = '#')
     {
         return self::build_components($baseUrl, $query, $hash, $q, $h);
-    }
-
-    public function redirect($url, $statusCode = 302, $statusMsg = true)
-    {
-        if ($url)
-        {
-            if (!headers_sent())
-            {
-                if ($statusMsg)
-                {
-                    if (true === $statusMsg)
-                        $statusMsg = isset(self::$HTTP_STATUS[$statusCode]) ? self::$HTTP_STATUS[$statusCode] : '';
-
-                    $protocol = $_SERVER["SERVER_PROTOCOL"];
-                    if ('HTTP/1.1' != $protocol && 'HTTP/1.0' != $protocol)
-                        $protocol = 'HTTP/1.0';
-
-                    @header("$protocol $statusCode $statusMsg", true, $statusCode);
-                    header("Location: $url", true, $statusCode);
-                }
-                else
-                {
-                    header("Location: $url", true, $statusCode);
-                }
-                exit;
-            }
-        }
-        return $this;
     }
 
     public function onGroup($groupRoute, $handler)
@@ -780,7 +670,7 @@ class Dromeo
         return isset($this->_named_routes[$named_route]) ? $this->_named_routes[$named_route]->make($params, $strict) : null;
     }
 
-    public function route($r, $method = "*", $breakOnFirstMatch = true, $originalR = null, $originalKey = null)
+    public function route($r, $method = "*", $breakOnFirstMatch = true, $getter = null)
     {
         if (!$this->isTop() && empty($this->_routes)) return false;
         $proceed = true;
@@ -801,7 +691,7 @@ class Dromeo
                 if ($route instanceof Dromeo)
                 {
                     // group router
-                    $match = $route->route($r, $method, $breakOnFirstMatch, $originalR, $originalKey);
+                    $match = $route->route($r, $method, $breakOnFirstMatch, $getter);
                     if (!$match) continue;
                     $found = true;
                 }
@@ -836,8 +726,7 @@ class Dromeo
                             'fallback'=> false,
                             'data'=> array_merge_recursive(array(), $handler->defaults)
                         );
-                        if (is_string($originalR)) $params['route_original'] = $originalR;
-                        $route->sub($match, $params['data'], $handler->types, $originalR, $originalKey);
+                        $route->sub($match, $params['data'], $handler->types, $getter);
 
                         $handler->called = 1; // handler called
                         if ($handler->oneOff) array_unshift($to_remove, $index);
@@ -991,7 +880,7 @@ class Dromeo
 
                 // http://abc.org/{%ALFA%:user}{/%NUM%:?id(1)}
                 $p = explode($_delims[4], $part);
-                if (!strlen($p[0]))
+                if (!strlen(trim($p[0])))
                 {
                     // http://abc.org/{:user}/{:?id}
                     // assume pattern is %PART%
@@ -1081,7 +970,7 @@ class Dromeo
                     }
                     elseif (preg_match(self::$_patternOr, $pattern[$i], $m))
                     {
-                        $p[ ] = '(' . implode('|', array_map('preg_quote', array_filter(explode('|', $m[1]), 'strlen'))) . ')';
+                        $p[] = '(' . implode('|', array_map('preg_quote', array_filter(explode('|', $m[1]), 'strlen'))) . ')';
                         ++$numGroups;
                         if (null === $tplPattern) $tplPattern = $p[count($p)-1];
                     }
@@ -1099,7 +988,7 @@ class Dromeo
             {
                 if (strlen($pattern[$i]))
                 {
-                    $p[] = preg_quote($pattern[ $i ], '/');
+                    $p[] = preg_quote($pattern[$i], '/');
                     $tpl[] = $pattern[$i];
                 }
                 $isPattern = true;
