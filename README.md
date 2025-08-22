@@ -11,6 +11,39 @@ Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.22.0** i
 4. `HttpFoundation` adapted from [Symfony's HttpFoundation component (v.7.3.1 / 2025)](https://github.com/symfony/http-foundation)
 
 
+**Hooks in order of execution:**
+
+**serve normal response**
+
+1. `tico_before_serve`
+2. `tico_before_middleware_before`
+3. `tico_after_middleware_before`
+4. `tico_before_route`
+5. `tico_after_route`
+6. `tico_before_middleware_after`
+7. `tico_after_middleware_after`
+8. `tico_prepared_response`
+9. `tico_cache_response`
+10. `tico_send_response`
+11. `tico_after_serve`
+
+**serve cached response**
+
+1. `tico_serve_cache`
+2. `tico_before_serve_cached`
+3. `tico_after_serve_cached`
+
+**various hooks run in-between when data are set or changed:**
+
+1. `tico_request`, set/change custom request object
+2. `tico_response`, set/change custom response object
+3. `tico_set_callback`, set/change streamed output via callback
+4. `tico_set_content`, set/change custom output content
+5. `tico_set_file`, set/change custom output file
+6. `tico_redirect`, set/change redirect url
+7. `tico_enqueue`, set/change enqueued assets
+
+
 **demo** (see `/demo/index.php`)
 
 ```php
