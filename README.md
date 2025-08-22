@@ -35,13 +35,14 @@ Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.22.0** i
 
 **various hooks run in-between when data are set or changed:**
 
-1. `tico_request`, set/change custom request object
-2. `tico_response`, set/change custom response object
-3. `tico_set_callback`, set/change streamed output via callback
-4. `tico_set_content`, set/change custom output content
-5. `tico_set_file`, set/change custom output file
-6. `tico_redirect`, set/change redirect url
-7. `tico_enqueue`, set/change enqueued assets
+1. `tico_request`, change request object
+2. `tico_response`, change response object
+3. `tico_set_callback`, change streamed output via callback
+4. `tico_set_content`, change output content
+5. `tico_set_file`, change/remove output file
+6. `tico_redirect`, change/remove redirect url
+7. `tico_autoload`, changea/remove autoload classes
+8. `tico_enqueue`, change/remove enqueued asset
 
 
 **demo** (see `/demo/index.php`)

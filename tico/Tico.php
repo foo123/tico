@@ -282,9 +282,9 @@ class Tico
             if (!class_exists('Dromeo', false)) include(TICO . '/Dromeo.php');
             $router = new Dromeo();
             $router->defineDelimiters($this->option('route_pattern_delimiters'));
-            foreach ($this->option('route_patterns') as $name => $pattern)
+            foreach ($this->option('route_patterns') as $tag => $pattern)
             {
-                $router->definePattern($name, is_array($pattern) ? $pattern[0] : $pattern, is_array($pattern) && isset($pattern[1]) ? $pattern[1] : null);
+                $router->definePattern($tag, (string)(is_array($pattern) ? $pattern['pattern'] : $pattern), is_array($pattern) && isset($pattern['type']) ? $pattern['type'] : null);
             }
             $this->Router = $router;
         }
@@ -309,12 +309,12 @@ class Tico
             if (($req = $this->variable('tico_request')) && ($req instanceof HttpRequest))
             {
                 $this->Request = $req;
-                $this->variable('tico_request', null);
             }
             else
             {
                 $this->Request = HttpRequest::createFromGlobals();
             }
+            $this->variable('tico_request', null);
             return $this->Request;
         }
     }
@@ -337,12 +337,12 @@ class Tico
             if (($res = $this->variable('tico_response')) && ($res instanceof HttpResponse))
             {
                 $this->Response = $res;
-                $this->variable('tico_response', null);
             }
             else
             {
                 $this->Response = new HttpResponse();
             }
+            $this->variable('tico_response', null);
             return $this->Response;
         }
     }
@@ -526,7 +526,10 @@ class Tico
         $this->variable('tico_redirect__code', $code);
         $this->variable('tico_redirect__uri', $uri);
         $this->hook('tico_redirect');
-        $this->response()->setTargetUrl($this->variable('tico_redirect__uri'), $this->variable('tico_redirect__code'));
+        if (!empty($this->variable('tico_redirect__uri')))
+        {
+            $this->response()->setTargetUrl($this->variable('tico_redirect__uri'), $this->variable('tico_redirect__code'));
+        }
         $this->variable('tico_redirect__code', null);
         $this->variable('tico_redirect__uri', null);
         $this->variable('cache', false); // redirects not cached
@@ -539,7 +542,10 @@ class Tico
         $this->variable('tico_enqueue__id', $id);
         $this->variable('tico_enqueue__asset', (array)$asset_def);
         $this->hook('tico_enqueue');
-        $this->loader()->enqueue($this->variable('tico_enqueue__type'), $this->variable('tico_enqueue__id'), $this->variable('tico_enqueue__asset'));
+        if (!empty($this->variable('tico_enqueue__asset')))
+        {
+            $this->loader()->enqueue($this->variable('tico_enqueue__type'), $this->variable('tico_enqueue__id'), $this->variable('tico_enqueue__asset'));
+        }
         $this->variable('tico_enqueue__type', null);
         $this->variable('tico_enqueue__id', null);
         $this->variable('tico_enqueue__asset', null);
@@ -553,11 +559,18 @@ class Tico
 
     public function autoload($what)
     {
-        foreach($what as $type => $items)
+        $this->variable('tico_autoload__entries', $what);
+        $this->hook('tico_autoload');
+        $what = $this->variable('tico_autoload__entries');
+        $this->variable('tico_autoload__entries', null);
+        if (is_array($what) && !empty($what))
         {
-            $this->loader()->register($type, $items);
+            foreach($what as $type => $items)
+            {
+                $this->loader()->register($type, $items);
+            }
+            $this->loader()->register_autoload();
         }
-        $this->loader()->register_autoload();
         return $this;
     }
 
@@ -628,7 +641,6 @@ class Tico
     public function http($method = 'get', $transport = 'server', $uri = '', $data = null, $headers = null, &$responseBody = '', &$responseStatus = 0, &$responseHeaders = null)
     {
         // TODO: support POST files ??
-        // TODO: support server socket transport ??
         if (!empty($uri))
         {
             $method = strtolower((string)$method);
@@ -658,6 +670,20 @@ class Tico
                     case 'get':
                     default:
                     $responseBody = $this->httpCURL('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), '', $this->kv($headers, array(), ': '), $responseStatus, $responseHeaders);
+                    break;
+                }
+            }
+            elseif ('socket' === $transport || 'server_socket' === $transport)
+            {
+                switch ($method)
+                {
+                    case 'post':
+                    $responseBody = $this->httpSOCKET('POST', $uri, !empty($data) ? http_build_query($data, '', '&') : '', $this->kv($headers, array('Content-type: application/x-www-form-urlencoded'), ': '), $responseStatus, $responseHeaders);
+                    break;
+
+                    case 'get':
+                    default:
+                    $responseBody = $this->httpSOCKET('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), '', $this->kv($headers, array(), ': '), $responseStatus, $responseHeaders);
                     break;
                 }
             }
@@ -1232,13 +1258,16 @@ class Tico
                 $content['content'] = $this->variable('tico_before_serve_cached__content');
                 $this->variable('tico_before_serve_cached__content_type', null);
                 $this->variable('tico_before_serve_cached__content', null);
-                header('Content-Type: '.$content['content-type'], true, $content['status']);
-                header('Last-Modified: '.$this->datetime($content['time']), true, $content['status']);
-                header('Date: '.$this->datetime(time()), true, $content['status']);
-                header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
-                echo $content['content'];
-                $this->hook('tico_after_serve_cached');
-                return true;
+                if (isset($content['content']))
+                {
+                    header('Content-Type: '.$content['content-type'], true, $content['status']);
+                    header('Last-Modified: '.$this->datetime($content['time']), true, $content['status']);
+                    header('Date: '.$this->datetime(time()), true, $content['status']);
+                    header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
+                    echo $content['content'];
+                    $this->hook('tico_after_serve_cached');
+                    return true;
+                }
             }
         }
         return false;
@@ -1334,6 +1363,22 @@ class Tico
         }
     }
 
+    protected function parseHttpHeader($responseHeader)
+    {
+        $responseHeaders = array();
+        foreach ($responseHeader as $header)
+        {
+            $header = explode(':', $header, 2);
+            if (count($header) >= 2)
+            {
+                $k = strtolower(trim($header[0])); $v = trim($header[1]);
+                if (!isset($responseHeaders[$k])) $responseHeaders[$k] = array($v);
+                else $responseHeaders[$k][] = $v;
+            }
+        }
+        return $responseHeaders;
+    }
+
     protected function httpCLIENT($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
     {
         switch (strtoupper($method))
@@ -1382,19 +1427,12 @@ class Tico
     protected function httpCURL($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
     {
         if (!function_exists('curl_init')) return false;
+        $responseHeader = array();
         $curl = curl_init($uri);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($curl, CURLOPT_HEADERFUNCTION, function($curl, $header) use (&$responseHeaders) {
-            if (is_null($responseHeaders)) $responseHeaders = array();
-            $len = strlen($header);
-            $header = explode(':', $header, 2);
-            if (count($header) >= 2)
-            {
-                $k = strtolower(trim($header[0])); $v = trim($header[1]);
-                if (!isset($responseHeaders[$k])) $responseHeaders[$k] = array($v);
-                else $responseHeaders[$k][] = $v;
-            }
-            return $len;
+        curl_setopt($curl, CURLOPT_HEADERFUNCTION, function($curl, $header) use (&$responseHeader) {
+            $responseHeader[] = $header;
+            return strlen($header);
         });
         curl_setopt($curl, CURLOPT_HTTPHEADER, $requestHeaders);
         if ('POST' === strtoupper($method))
@@ -1413,6 +1451,67 @@ class Tico
             $responseBody = false;
         }
         curl_close($curl);
+        $responseHeaders = $this->parseHttpHeader($responseHeader);
+        return $responseBody;
+    }
+
+    protected function httpSOCKET($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
+    {
+        if (!function_exists('fsockopen')) return false;
+        $redirects = 0;
+        while ($redirects < 4)
+        {
+            $uri = parse_url($uri);
+            $host = $uri['host'];
+            $port = isset($uri['port']) ? intval($uri['port']) : 80;
+            $path = $uri['path'];
+            if (empty($path)) $path = '/';
+            $timeout = 120; // sec
+
+            // open socket
+            try {
+                $fp = @fsockopen($host, $port, $errno, $errstr, $timeout);
+            } catch (Exception $e) {
+                $fp = null;
+            }
+            if (!$fp) return false;
+
+            // make request
+            $content_length = strlen((string)$requestBody);
+            fputs($fp, ('POST' === strtoupper($method) ? "POST" : "GET")." $path HTTP/1.1");
+            fputs($fp, "\r\n"."Host: $host");
+            if (!empty($requestHeaders))
+            {
+                fputs($fp, "\r\n".implode("\r\n", (array)$requestHeaders));
+            }
+            fputs($fp, "\r\n"."Content-length: $content_length");
+            fputs($fp, "\r\n"."Connection: close");
+            fputs($fp, "\r\n\r\n".($content_length ? (((string)$requestBody)."\r\n\r\n") : ""));
+
+            // receive response
+            $response = '';
+            while (!feof($fp)) $response .= fgets($fp, 1024);
+
+            // close socket
+            fclose($fp);
+
+            // parse headers and content
+            $response = explode("\r\n\r\n", $response, 2);
+            $responseHeader = isset($response[0]) ? $response[0] : '';
+            $responseBody = isset($response[1]) ? $response[1] : '';
+            $responseHeaders = $this->parseHttpHeader(empty($responseHeader) ? array() : array_map('trim', explode("\r\n", $responseHeader)));
+            if (!empty($responseHeader) && preg_match('#HTTP/\\S*\\s+(\\d{3})#', $responseHeader, $m)) $responseStatus = (int)$m[1];
+            if ((301 <= $responseStatus && $responseStatus <= 304) && preg_match('#Location:\\s+(\\S+)#', $responseHeader, $m))
+            {
+                ++$redirects;
+                $uri = $m[1];
+                continue;
+            }
+            else
+            {
+                break;
+            }
+        }
         return $responseBody;
     }
 
@@ -1420,8 +1519,8 @@ class Tico
     {
         $context = stream_context_create(array(
             "http" => array(
-                "method"        => strtoupper($method),
-                "header"        => implode("\r\n", (array)$requestHeaders),
+                "method"        => 'POST' === strtoupper($method) ? 'POST' : 'GET',
+                "header"        => implode("\r\n", (array)$requestHeaders).("\r\n"."Content-length: ".strlen((string)$requestBody).""),
                 "content"       => (string)$requestBody,
                 "ignore_errors" => true,
             ),
@@ -1431,8 +1530,9 @@ class Tico
         } catch (Exception $e) {
             $responseBody = false;
         }
-        if (!empty($http_response_header)) $responseHeaders = array_merge(array(), $http_response_header);
-        if (!empty($responseHeaders) && preg_match('#HTTP/\\S*\\s+(\\d{3})#', $responseHeaders[0], $m)) $responseStatus = (int)$m[1];
+        if (!empty($http_response_header)) $responseHeader = array_merge(array(), $http_response_header);
+        if (!empty($responseHeader) && preg_match('#HTTP/\\S*\\s+(\\d{3})#', $responseHeader[0], $m)) $responseStatus = (int)$m[1];
+        $responseHeaders = $this->parseHttpHeader($responseHeader);
         return $responseBody;
     }
 }
