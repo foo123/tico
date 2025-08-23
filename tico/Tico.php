@@ -638,44 +638,6 @@ class Tico
         }
     }
 
-    public function http($method = 'get', $uri = '', $data = null, $headers = null, &$responseBody = '', &$responseStatus = 0, &$responseHeaders = null)
-    {
-        // TODO: support POST files ??
-        if (!empty($uri))
-        {
-            $method = strtoupper((string)$method);
-            if (function_exists('curl_init'))
-            {
-                switch ($method)
-                {
-                    case 'POST':
-                    $responseBody = $this->httpCURL('POST', $uri, !empty($data) ? http_build_query($data, '', '&') : '', $this->formatHttpHeader($headers, array('Content-type: application/x-www-form-urlencoded'), ': '), $responseStatus, $responseHeaders);
-                    break;
-
-                    case 'GET':
-                    default:
-                    $responseBody = $this->httpCURL('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), '', $this->formatHttpHeader($headers, array(), ': '), $responseStatus, $responseHeaders);
-                    break;
-                }
-            }
-            elseif (function_exists('stream_context_create') && function_exists('file_get_contents') && ini_get('allow_url_fopen'))
-            {
-                switch ($method)
-                {
-                    case 'POST':
-                    $responseBody = $this->httpFILE('POST', $uri, !empty($data) ? http_build_query($data, '', '&') : '', $this->formatHttpHeader($headers, array('Content-type: application/x-www-form-urlencoded'), ': '), $responseStatus, $responseHeaders);
-                    break;
-
-                    case 'GET':
-                    default:
-                    $responseBody = $this->httpFILE('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), '', $this->formatHttpHeader($headers, array(), ': '), $responseStatus, $responseHeaders);
-                    break;
-                }
-            }
-        }
-        return $this;
-    }
-
     public function isSsl()
     {
         return $this->request()->isSecure();
@@ -1163,9 +1125,7 @@ class Tico
     public function datetime($time = null)
     {
         if (is_null($time)) $time = time();
-        $dt = \DateTime::createFromFormat('U', $time);
-        $dt->setTimezone(new \DateTimeZone('UTC'));
-        return $dt->format('D, d M Y H:i:s').' GMT';
+        return gmdate('D, d M Y H:i:s', $time) . ' GMT';
     }
 
     public function cached()
@@ -1305,146 +1265,6 @@ class Tico
             }
             $this->_k = $host . $port . $uri;
         }
-    }
-
-    public function flatten($input, $output = array(), $prefix = null)
-    {
-        if (!empty($input))
-        {
-            foreach ($input as $key => $val)
-            {
-                $name = empty($prefix) ? $key : ($prefix."[$key]");
-
-                if (is_array($val)) $output = $this->flatten($val, $output, $name);
-                else $output[$name] = $val;
-            }
-        }
-        return $output;
-    }
-
-    protected function formatHttpHeader($input, $output = array(), $glue = '')
-    {
-        if (!empty($input))
-        {
-            foreach ($input as $key => $val)
-            {
-                if (is_array($val))
-                {
-                    foreach ($val as $v)
-                    {
-                        $output[] = ((string)$key) . $glue . ((string)$v);
-                    }
-                }
-                else
-                {
-                    $output[] = ((string)$key) . $glue . ((string)$val);
-                }
-            }
-        }
-        return $output;
-    }
-
-    protected function parseHttpHeader($responseHeader)
-    {
-        $responseHeaders = array();
-        foreach ($responseHeader as $header)
-        {
-            $header = explode(':', $header, 2);
-            if (count($header) >= 2)
-            {
-                $k = strtolower(trim($header[0])); $v = trim($header[1]);
-                if (!isset($responseHeaders[$k])) $responseHeaders[$k] = array($v);
-                else $responseHeaders[$k][] = $v;
-            }
-        }
-        return $responseHeaders;
-    }
-
-    protected function httpCURL($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
-    {
-        $responseHeader = array();
-        // init
-        $curl = curl_init($uri);
-
-        // setup
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($curl, CURLOPT_MAXREDIRS, 3);
-        curl_setopt($curl, CURLOPT_HEADERFUNCTION, function($curl, $header) use (&$responseHeader) {
-            $responseHeader[] = trim($header);
-            return strlen($header);
-        });
-
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $requestHeaders);
-        if ('POST' === strtoupper($method))
-        {
-            curl_setopt($curl, CURLOPT_POST, true);
-            curl_setopt($curl, CURLOPT_POSTFIELDS, $requestBody);
-        }
-        else
-        {
-            curl_setopt($curl, CURLOPT_HTTPGET, true);
-        }
-
-        // make request
-        try {
-            $responseBody = @curl_exec($curl);
-            $responseStatus = @curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        } catch (Exception $e) {
-            $responseBody = false;
-        }
-
-        // close connection
-        curl_close($curl);
-
-        $responseHeaders = $this->parseHttpHeader($responseHeader);
-        return $responseBody;
-    }
-
-    protected function httpFILE($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
-    {
-        // setup
-        $contentLength = strlen((string)$requestBody);
-        $requestHeader = '';
-        if (!empty($requestHeaders))
-        {
-            $requestHeader = implode("\r\n", (array)$requestHeaders);
-            //$requestHeader .= "\r\nContent-length: $contentLength";
-        }
-        else
-        {
-            //$requestHeader = "Content-length: $contentLength";
-        }
-        $http = stream_context_create(array(
-            "http" => array(
-                "method"            => 'POST' === strtoupper($method) ? 'POST' : 'GET',
-                "header"            => $requestHeader,
-                "content"           => (string)$requestBody,
-                "follow_location"   => 1,
-                "max_redirects"     => 3,
-                "ignore_errors"     => true,
-            ),
-        ));
-
-        // open, make request and close
-        try {
-            $responseBody = @file_get_contents($uri, false, $http);
-        } catch (Exception $e) {
-            $responseBody = false;
-        }
-
-        if (!empty($http_response_header))
-        {
-            $responseHeader = array_merge(array(), $http_response_header);
-            if (!empty($responseHeader) && preg_match('#HTTP/\\S*\\s+(\\d{3})#', $responseHeader[0], $m)) $responseStatus = (int)$m[1];
-            $responseHeaders = $this->parseHttpHeader($responseHeader);
-        }
-        else
-        {
-            $responseStatus = 0;
-            $responseHeaders = array();
-        }
-        return $responseBody;
     }
 }
 class TicoException extends Exception

@@ -25,11 +25,15 @@ tico('http://localhost:8000', ROOT)
         return new MyModel();
     }) // container supports lazy factory-like functions
     ->set('cache', function() {
-        include tico()->path('/cache/CacheManager.php');
+        include tico()->path('/lib/CacheManager.php');
         return (new CacheManager())
             ->option('cache_dur_sec', 2 * 60/*2 minutes*/)
             ->option('cache_dir', tico()->path('/cache/data'))
         ;
+    }) // container supports lazy factory-like functions
+    ->set('http', function() {
+        include tico()->path('/lib/EazyHttp.php');
+        return new EazyHttp();
     }) // container supports lazy factory-like functions
     ->hook('tico_before_serve_cached', function() {
         // a custom hook
@@ -190,14 +194,14 @@ or
     tico()->redirect(tico()->uri('/'), 302);
 
 })
-->on('*', '/fetch', function() {
+->on('get', '/fetch', function() {
 
     $uri = tico()->request()->query->get('uri', 'https://github.com/foo123/tico');
-    tico()
-    ->variable('cache', false) // don't cache this page
-    ->http('get', $uri, null, null, $output, $status) // do http request
-    ->output(
-    !$status ? '<span style="color:red;font-size:16px;">-- An error occured</span>' : (200 <= $status && $status < 300 ? $output : "<span style=\"color:".(400 <= $status && $status < 500 ? 'orange' : (500 <= $status ? 'red' : 'green')).";font-size:16px;\">-- Response Status for &quot;{$uri}&quot;: <b>{$status}</b> --</span>"),
+    $response = tico()->get('http')->get($uri); // do http request
+    
+    // don't cache this page
+    tico()->variable('cache', false)->output(
+    !$response->status ? '<span style="color:red;font-size:16px;">-- An error occured</span>' : (200 <= $response->status && $response->status < 300 ? $response->content : "<span style=\"color:".(400 <= $response->status && $response->status < 500 ? 'orange' : (500 <= $response->status ? 'red' : 'green')).";font-size:16px;\">-- Response Status for &quot;{$uri}&quot;: <b>{$response->status}</b> --</span>"),
     'html'
     );
 })

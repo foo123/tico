@@ -2430,7 +2430,7 @@ class HttpCookie
         $name = $decode ? urldecode($part[0]) : $part[0];
         $value = isset($part[1]) ? ($decode ? urldecode($part[1]) : $part[1]) : null;
 
-        $data = HttpHeaderUtils::combine($parts) + $data;
+        $data = array_merge($data, HttpHeaderUtils::combine($parts));
         $data['expires'] = self::expiresTimestamp($data['expires']);
 
         if (isset($data['max-age']) && ($data['max-age'] > 0 || $data['expires'] > time())) {
