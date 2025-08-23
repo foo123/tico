@@ -5,10 +5,10 @@ Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.22.0** i
 
 **Uses:**
 
-1. [`Importer`](https://github.com/foo123/Importer) class &amp; asset dependency loader
-2. [`Dromeo`](https://github.com/foo123/Dromeo) versatile pattern router
-3. [`InTpl`](https://github.com/foo123/InTpl) simple php templates w/ inheritance
-4. `HttpFoundation` adapted from [Symfony's HttpFoundation component (v.7.3.1 / 2025)](https://github.com/symfony/http-foundation)
+1. [Importer](https://github.com/foo123/Importer) class &amp; asset dependency loader
+2. [Dromeo](https://github.com/foo123/Dromeo) versatile pattern router
+3. [InTpl](https://github.com/foo123/InTpl) simple php templates w/ inheritance
+4. HttpFoundation, adapted from [Symfony's HttpFoundation component (v.7.3.1 / 2025)](https://github.com/symfony/http-foundation)
 
 
 **Hooks in order of execution:**
@@ -35,13 +35,13 @@ Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.22.0** i
 
 **various hooks run in-between when data are set or changed:**
 
-1. `tico_request`, change request object
-2. `tico_response`, change response object
+1. `tico_request`, set request object
+2. `tico_response`, set response object
 3. `tico_set_callback`, change streamed output via callback
 4. `tico_set_content`, change output content
 5. `tico_set_file`, change/remove output file
 6. `tico_redirect`, change/remove redirect url
-7. `tico_autoload`, changea/remove autoload classes
+7. `tico_autoload`, change/remove autoload classes
 8. `tico_enqueue`, change/remove enqueued asset
 
 

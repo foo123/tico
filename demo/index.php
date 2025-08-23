@@ -195,7 +195,7 @@ or
     $uri = tico()->request()->query->get('uri', 'https://github.com/foo123/tico');
     tico()
     ->variable('cache', false) // don't cache this page
-    ->http('get', 'server', $uri, null, null, $output, $status) // do http request
+    ->http('get', $uri, null, null, $output, $status) // do http request
     ->output(
     !$status ? '<span style="color:red;font-size:16px;">-- An error occured</span>' : (200 <= $status && $status < 300 ? $output : "<span style=\"color:".(400 <= $status && $status < 500 ? 'orange' : (500 <= $status ? 'red' : 'green')).";font-size:16px;\">-- Response Status for &quot;{$uri}&quot;: <b>{$status}</b> --</span>"),
     'html'

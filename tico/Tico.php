@@ -638,66 +638,37 @@ class Tico
         }
     }
 
-    public function http($method = 'get', $transport = 'server', $uri = '', $data = null, $headers = null, &$responseBody = '', &$responseStatus = 0, &$responseHeaders = null)
+    public function http($method = 'get', $uri = '', $data = null, $headers = null, &$responseBody = '', &$responseStatus = 0, &$responseHeaders = null)
     {
         // TODO: support POST files ??
         if (!empty($uri))
         {
-            $method = strtolower((string)$method);
-            $transport = strtolower((string)$transport);
-            if ('client' === $transport || 'browser' === $transport)
+            $method = strtoupper((string)$method);
+            if (function_exists('curl_init'))
             {
                 switch ($method)
                 {
-                    case 'post':
-                    $responseBody = $this->httpCLIENT('POST', $uri, $data);
+                    case 'POST':
+                    $responseBody = $this->httpCURL('POST', $uri, !empty($data) ? http_build_query($data, '', '&') : '', $this->formatHttpHeader($headers, array('Content-type: application/x-www-form-urlencoded'), ': '), $responseStatus, $responseHeaders);
                     break;
 
-                    case 'get':
+                    case 'GET':
                     default:
-                    $responseBody = $this->httpCLIENT('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''));
+                    $responseBody = $this->httpCURL('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), '', $this->formatHttpHeader($headers, array(), ': '), $responseStatus, $responseHeaders);
                     break;
                 }
             }
-            elseif ('curl' === $transport || 'server_curl' === $transport)
+            elseif (function_exists('stream_context_create') && function_exists('file_get_contents') && ini_get('allow_url_fopen'))
             {
                 switch ($method)
                 {
-                    case 'post':
-                    $responseBody = $this->httpCURL('POST', $uri, !empty($data) ? http_build_query($data, '', '&') : '', $this->kv($headers, array('Content-type: application/x-www-form-urlencoded'), ': '), $responseStatus, $responseHeaders);
+                    case 'POST':
+                    $responseBody = $this->httpFILE('POST', $uri, !empty($data) ? http_build_query($data, '', '&') : '', $this->formatHttpHeader($headers, array('Content-type: application/x-www-form-urlencoded'), ': '), $responseStatus, $responseHeaders);
                     break;
 
-                    case 'get':
+                    case 'GET':
                     default:
-                    $responseBody = $this->httpCURL('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), '', $this->kv($headers, array(), ': '), $responseStatus, $responseHeaders);
-                    break;
-                }
-            }
-            elseif ('socket' === $transport || 'server_socket' === $transport)
-            {
-                switch ($method)
-                {
-                    case 'post':
-                    $responseBody = $this->httpSOCKET('POST', $uri, !empty($data) ? http_build_query($data, '', '&') : '', $this->kv($headers, array('Content-type: application/x-www-form-urlencoded'), ': '), $responseStatus, $responseHeaders);
-                    break;
-
-                    case 'get':
-                    default:
-                    $responseBody = $this->httpSOCKET('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), '', $this->kv($headers, array(), ': '), $responseStatus, $responseHeaders);
-                    break;
-                }
-            }
-            else//if ('server' === $transport || 'server_file' === $transport)
-            {
-                switch ($method)
-                {
-                    case 'post':
-                    $responseBody = $this->httpFILE('POST', $uri, !empty($data) ? http_build_query($data, '', '&') : '', $this->kv($headers, array('Content-type: application/x-www-form-urlencoded'), ': '), $responseStatus, $responseHeaders);
-                    break;
-
-                    case 'get':
-                    default:
-                    $responseBody = $this->httpFILE('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), '', $this->kv($headers, array(), ': '), $responseStatus, $responseHeaders);
+                    $responseBody = $this->httpFILE('GET', $uri.(!empty($data) ? ((false === strpos($uri, '?') ? '?' : '&').http_build_query($data, '', '&')) : ''), '', $this->formatHttpHeader($headers, array(), ': '), $responseStatus, $responseHeaders);
                     break;
                 }
             }
@@ -1111,33 +1082,6 @@ class Tico
     }
 
     // utils ------------------------------------------------
-    public function flatten($input, $output = array(), $prefix = null)
-    {
-        if (!empty($input))
-        {
-            foreach ($input as $key => $val)
-            {
-                $name = empty($prefix) ? $key : ($prefix."[$key]");
-
-                if (is_array($val)) $output = $this->flatten($val, $output, $name);
-                else $output[$name] = $val;
-            }
-        }
-        return $output;
-    }
-
-    public function kv($input, $output = array(), $glue = '')
-    {
-        if (!empty($input))
-        {
-            foreach ($input as $key => $val)
-            {
-                $output[] = ((string)$key) . $glue . ((string)$val);
-            }
-        }
-        return $output;
-    }
-
     public function normalizePath($requestPath)
     {
         if ('/' === $requestPath) return array('/', '/', '/', array());
@@ -1363,6 +1307,43 @@ class Tico
         }
     }
 
+    public function flatten($input, $output = array(), $prefix = null)
+    {
+        if (!empty($input))
+        {
+            foreach ($input as $key => $val)
+            {
+                $name = empty($prefix) ? $key : ($prefix."[$key]");
+
+                if (is_array($val)) $output = $this->flatten($val, $output, $name);
+                else $output[$name] = $val;
+            }
+        }
+        return $output;
+    }
+
+    protected function formatHttpHeader($input, $output = array(), $glue = '')
+    {
+        if (!empty($input))
+        {
+            foreach ($input as $key => $val)
+            {
+                if (is_array($val))
+                {
+                    foreach ($val as $v)
+                    {
+                        $output[] = ((string)$key) . $glue . ((string)$v);
+                    }
+                }
+                else
+                {
+                    $output[] = ((string)$key) . $glue . ((string)$val);
+                }
+            }
+        }
+        return $output;
+    }
+
     protected function parseHttpHeader($responseHeader)
     {
         $responseHeaders = array();
@@ -1379,61 +1360,21 @@ class Tico
         return $responseHeaders;
     }
 
-    protected function httpCLIENT($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
-    {
-        switch (strtoupper($method))
-        {
-            case 'POST':
-            if (!empty($requestBody))
-            {
-                if (is_array($requestBody))
-                {
-                    $requestData = $requestBody;
-                }
-                else
-                {
-                    $requestData = array();
-                    @parse_str((string)$requestBody, $requestData);
-                }
-                $requestData = $this->flatten($requestData);
-                $formData = implode('', array_map(function($name, $value) {return '<input type="hidden" name="'.$name.'" value="'.$value.'" />';}, array_keys($requestData), $requestData));
-            }
-            else
-            {
-                $formData = '';
-            }
-            try {
-                @header('Content-Type: text/html; charset=UTF-8', true, 200);
-                @header('Date: '.$this->datetime(time()), true, 200);
-                echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><title>POST '.$uri.'</title></head><body onload="do_post();"><form name="post_form" id="post_form" method="post" enctype="application/x-www-form-urlencoded" action="'.$uri.'">'.$formData.'</form><script type="text/javascript">function do_post() {document.post_form.submit();}</script></body></html>');
-            } catch (Exception $e) {
-            }
-            break;
-
-            case 'GET':
-            default:
-            try {
-                @header("Location: $uri", true, 303);
-                @header('Content-Type: text/html; charset=UTF-8', true, 303);
-                @header('Date: '.$this->datetime(time()), true, 303);
-                echo ('<!DOCTYPE html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"/><meta http-equiv="refresh" content="0; URL='.$uri.'"/><title>GET '.$uri.'</title></head><body onload="do_get();"><script type="text/javascript">function do_get() {window.location.href = "'.$uri.'";}</script></body></html>');
-            } catch (Exception $e) {
-            }
-            break;
-        }
-        return null;
-    }
-
     protected function httpCURL($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
     {
-        if (!function_exists('curl_init')) return false;
         $responseHeader = array();
+        // init
         $curl = curl_init($uri);
+
+        // setup
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($curl, CURLOPT_MAXREDIRS, 3);
         curl_setopt($curl, CURLOPT_HEADERFUNCTION, function($curl, $header) use (&$responseHeader) {
-            $responseHeader[] = $header;
+            $responseHeader[] = trim($header);
             return strlen($header);
         });
+
         curl_setopt($curl, CURLOPT_HTTPHEADER, $requestHeaders);
         if ('POST' === strtoupper($method))
         {
@@ -1444,95 +1385,65 @@ class Tico
         {
             curl_setopt($curl, CURLOPT_HTTPGET, true);
         }
+
+        // make request
         try {
             $responseBody = @curl_exec($curl);
             $responseStatus = @curl_getinfo($curl, CURLINFO_HTTP_CODE);
         } catch (Exception $e) {
             $responseBody = false;
         }
+
+        // close connection
         curl_close($curl);
+
         $responseHeaders = $this->parseHttpHeader($responseHeader);
-        return $responseBody;
-    }
-
-    protected function httpSOCKET($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
-    {
-        if (!function_exists('fsockopen')) return false;
-        $redirects = 0;
-        while ($redirects < 4)
-        {
-            $uri = parse_url($uri);
-            $host = $uri['host'];
-            $port = isset($uri['port']) ? intval($uri['port']) : 80;
-            $path = $uri['path'];
-            if (empty($path)) $path = '/';
-            $timeout = 120; // sec
-
-            // open socket
-            try {
-                $fp = @fsockopen($host, $port, $errno, $errstr, $timeout);
-            } catch (Exception $e) {
-                $fp = null;
-            }
-            if (!$fp) return false;
-
-            // make request
-            $content_length = strlen((string)$requestBody);
-            fputs($fp, ('POST' === strtoupper($method) ? "POST" : "GET")." $path HTTP/1.1");
-            fputs($fp, "\r\n"."Host: $host");
-            if (!empty($requestHeaders))
-            {
-                fputs($fp, "\r\n".implode("\r\n", (array)$requestHeaders));
-            }
-            fputs($fp, "\r\n"."Content-length: $content_length");
-            fputs($fp, "\r\n"."Connection: close");
-            fputs($fp, "\r\n\r\n".($content_length ? (((string)$requestBody)."\r\n\r\n") : ""));
-
-            // receive response
-            $response = '';
-            while (!feof($fp)) $response .= fgets($fp, 1024);
-
-            // close socket
-            fclose($fp);
-
-            // parse headers and content
-            $response = explode("\r\n\r\n", $response, 2);
-            $responseHeader = isset($response[0]) ? $response[0] : '';
-            $responseBody = isset($response[1]) ? $response[1] : '';
-            $responseHeaders = $this->parseHttpHeader(empty($responseHeader) ? array() : array_map('trim', explode("\r\n", $responseHeader)));
-            if (!empty($responseHeader) && preg_match('#HTTP/\\S*\\s+(\\d{3})#', $responseHeader, $m)) $responseStatus = (int)$m[1];
-            if ((301 <= $responseStatus && $responseStatus <= 304) && preg_match('#Location:\\s+(\\S+)#', $responseHeader, $m))
-            {
-                ++$redirects;
-                $uri = $m[1];
-                continue;
-            }
-            else
-            {
-                break;
-            }
-        }
         return $responseBody;
     }
 
     protected function httpFILE($method, $uri, $requestBody = '', $requestHeaders = array(), &$responseStatus = 0, &$responseHeaders = null)
     {
-        $context = stream_context_create(array(
+        // setup
+        $contentLength = strlen((string)$requestBody);
+        $requestHeader = '';
+        if (!empty($requestHeaders))
+        {
+            $requestHeader = implode("\r\n", (array)$requestHeaders);
+            //$requestHeader .= "\r\nContent-length: $contentLength";
+        }
+        else
+        {
+            //$requestHeader = "Content-length: $contentLength";
+        }
+        $http = stream_context_create(array(
             "http" => array(
-                "method"        => 'POST' === strtoupper($method) ? 'POST' : 'GET',
-                "header"        => implode("\r\n", (array)$requestHeaders).("\r\n"."Content-length: ".strlen((string)$requestBody).""),
-                "content"       => (string)$requestBody,
-                "ignore_errors" => true,
+                "method"            => 'POST' === strtoupper($method) ? 'POST' : 'GET',
+                "header"            => $requestHeader,
+                "content"           => (string)$requestBody,
+                "follow_location"   => 1,
+                "max_redirects"     => 3,
+                "ignore_errors"     => true,
             ),
         ));
+
+        // open, make request and close
         try {
-            $responseBody = @file_get_contents($uri, false, $context);
+            $responseBody = @file_get_contents($uri, false, $http);
         } catch (Exception $e) {
             $responseBody = false;
         }
-        if (!empty($http_response_header)) $responseHeader = array_merge(array(), $http_response_header);
-        if (!empty($responseHeader) && preg_match('#HTTP/\\S*\\s+(\\d{3})#', $responseHeader[0], $m)) $responseStatus = (int)$m[1];
-        $responseHeaders = $this->parseHttpHeader($responseHeader);
+
+        if (!empty($http_response_header))
+        {
+            $responseHeader = array_merge(array(), $http_response_header);
+            if (!empty($responseHeader) && preg_match('#HTTP/\\S*\\s+(\\d{3})#', $responseHeader[0], $m)) $responseStatus = (int)$m[1];
+            $responseHeaders = $this->parseHttpHeader($responseHeader);
+        }
+        else
+        {
+            $responseStatus = 0;
+            $responseHeaders = array();
+        }
         return $responseBody;
     }
 }

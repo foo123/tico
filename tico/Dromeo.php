@@ -155,8 +155,17 @@ class DromeoRoute
         if (!$this->isParsed || $this->literal) return $this;
         $givenInput = is_array($match[0]) ? $match[0][0] : $match[0];
         $hasGetter = is_callable($getter);
+        $captures = array();
         foreach ($this->captures as $v => $g)
         {
+            $captures[] = array($v, $g);
+        }
+        usort($captures, function($a, $b) use ($match) {
+            return (is_array($match[$a[1][0]]) && is_array($match[$b[1][0]])) ? ($match[$a[1][0]][1]-$match[$b[1][0]][1]) : ($a[1][0]-$b[1][0]);
+        });
+        foreach ($captures as $cap)
+        {
+            $v = $cap[0]; $g = $cap[1];
             $groupIndex = $g[0];
             $groupTypecaster = $g[1];
             if (isset($match[$groupIndex]) && $match[$groupIndex])
@@ -214,7 +223,7 @@ class Dromeo
 {
     const VERSION = "1.3.0";
 
-    private static $_patternOr = '/^([^|]+\\|.+)$/';
+    private static $_patternOr = '/^([^|]+(\\|[^|]+)+)$/';
     private static $_group = '/\\((\\d+)\\)$/';
 
     private $_delims = null;
