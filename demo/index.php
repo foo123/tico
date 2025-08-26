@@ -31,10 +31,6 @@ tico('http://localhost:8000', ROOT)
             ->option('cache_dir', tico()->path('/cache/data'))
         ;
     }) // container supports lazy factory-like functions
-    ->set('http', function() {
-        include tico()->path('/lib/EazyHttp.php');
-        return new EazyHttp();
-    }) // container supports lazy factory-like functions
     ->hook('tico_before_serve_cached', function() {
         // a custom hook
         tico()->variable('tico_before_serve_cached__content', tico()->variable('tico_before_serve_cached__content')."\n\n<!--cached version-->");
@@ -193,17 +189,6 @@ or
 
     tico()->redirect(tico()->uri('/'), 302);
 
-})
-->on('get', '/fetch', function() {
-
-    $uri = tico()->request()->query->get('uri', 'https://github.com/foo123/tico');
-    $response = tico()->get('http')->get($uri); // do http request
-    
-    // don't cache this page
-    tico()->variable('cache', false)->output(
-    !$response->status ? '<span style="color:red;font-size:16px;">-- An error occured</span>' : (200 <= $response->status && $response->status < 300 ? $response->content : "<span style=\"color:".(400 <= $response->status && $response->status < 500 ? 'orange' : (500 <= $response->status ? 'red' : 'green')).";font-size:16px;\">-- Response Status for &quot;{$uri}&quot;: <b>{$response->status}</b> --</span>"),
-    'html'
-    );
 })
 ->on(false, function() {
 

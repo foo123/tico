@@ -30,8 +30,8 @@ class Tico
     public $Middleware = null;
     public $SubdomainsPorts = array();
 
-    private $_onSubdomainPort = null;
-    private $_k = null;
+    protected $_onSubdomainPort = null;
+    protected $_k = null;
 
     public function __construct($baseUrl = '', $basePath = '')
     {
@@ -1272,8 +1272,8 @@ class TicoException extends Exception
 }
 class TicoValue
 {
-    private $v = null;
-    private $isLoaded = false;
+    protected $v = null;
+    protected $isLoaded = false;
 
     public function __construct($value, $asIs = false)
     {
@@ -1297,8 +1297,8 @@ class TicoValue
 }
 class TicoParams
 {
-    private $datao = null;
-    private $datai = null;
+    protected $datao = null;
+    protected $datai = null;
 
     public function __construct($data = array(), $orig_key = null)
     {
