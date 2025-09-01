@@ -1,7 +1,7 @@
 <?php
 /**
 *
-* Tiny, super-simple but versatile quasi-MVC web framework for PHP
+* Mini, super-simple and versatile MVC web framework for PHP
 * @version 1.22.0
 * https://github.com/foo123/tico
 *
@@ -1122,12 +1122,6 @@ class Tico
         }
     }
 
-    public function datetime($time = null)
-    {
-        if (is_null($time)) $time = time();
-        return gmdate('D, d M Y H:i:s', $time) . ' GMT';
-    }
-
     public function cached()
     {
         //if (!$this->request()->isMethodCacheable() /*|| !$this->response()->isCacheable()*/) return null;
@@ -1164,10 +1158,10 @@ class Tico
                 $this->variable('tico_before_serve_cached__content', null);
                 if (isset($content['content']))
                 {
-                    header('Content-Type: '.$content['content-type'], true, $content['status']);
-                    header('Last-Modified: '.$this->datetime($content['time']), true, $content['status']);
-                    header('Date: '.$this->datetime(time()), true, $content['status']);
-                    header($content['protocol'].' '.$content['status'].' '.$content['status-text'], true, $content['status']);
+                    header('Content-Type: ' . $content['content-type'], true, $content['status']);
+                    header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $content['time']) . ' GMT', true, $content['status']);
+                    header('Date: ' . gmdate('D, d M Y H:i:s', time()) . ' GMT', true, $content['status']);
+                    header($content['protocol'] . ' ' . $content['status'] . ' ' . $content['status-text'], true, $content['status']);
                     echo $content['content'];
                     $this->hook('tico_after_serve_cached');
                     return true;
@@ -1180,7 +1174,7 @@ class Tico
     protected function parseUrl($baseUrl, $defaultPath = '', $normalized = false)
     {
         $parts = parse_url($baseUrl);
-        $scheme = isset($parts['scheme']) ? $parts['scheme'] : 'http';
+        $scheme = isset($parts['scheme']) ? strtolower($parts['scheme']) : 'http';
         $host = isset($parts['host']) ? $parts['host'] : '';
         $port = (string)(isset($parts['port']) ? $parts['port'] : '');
         $path = isset($parts['path']) ? $parts['path'] : '';

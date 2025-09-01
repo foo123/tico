@@ -1,6 +1,6 @@
 # tico
 
-Tiny, super-simple but versatile quasi-MVC web framework for PHP (**v.1.22.0** in progress)
+Mini, super-simple and versatile MVC Web Framework for PHP (**v.1.22.0** in progress)
 
 
 **Uses:**

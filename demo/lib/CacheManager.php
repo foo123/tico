@@ -3,7 +3,7 @@
 *   CacheManager
 *   Simple, barebones cache manager for PHP, JavaScript, Python
 *
-*   @version 1.0.0
+*   @version 1.0.1
 *   https://github.com/foo123/CacheManager
 *
 **/
@@ -19,9 +19,9 @@ class CacheManagerException extends Exception
 }
 class CacheManager
 {
-    const VERSION = '1.0.0';
+    const VERSION = '1.0.1';
 
-    private $opts = null;
+    protected $opts = null;
 
     public function __construct()
     {
@@ -79,7 +79,7 @@ class CacheManager
                         $content = substr($data, $sep+strlen($separator));
                         return $content;
                     }
-                    elseif ($this->option('delete_expired'))
+                    elseif (!empty($this->option('delete_expired')))
                     {
                         @unlink($file);
                     }
@@ -93,7 +93,7 @@ class CacheManager
     {
         $setter = $this->option('set_key');
         $cache_dir = $this->option('cache_dir');
-        $duration = $this->option('cache_dur_sec');
+        $duration = intval($this->option('cache_dur_sec'));
         if (is_callable($setter))
         {
             return call_user_func($setter, $key, $content, $duration);
@@ -103,7 +103,7 @@ class CacheManager
             $file = $cache_dir . DIRECTORY_SEPARATOR . $this->hmac($key);
             $separator = $this->option('separator');
             try {
-                $res = @file_put_contents($file, ((string)(time()+$duration)).$separator.$content);
+                $res = @file_put_contents($file, ((string)(time()+$duration)) . $separator . $content);
             } catch(Exception $e) {
                 $res = false;
             }
@@ -133,7 +133,7 @@ class CacheManager
         return false;
     }
 
-    private function hmac($key)
+    protected function hmac($key)
     {
         $salt = $this->option('salt');
         return hash_hmac('md5', $key, (string)($salt ? $salt : ''));
