@@ -97,7 +97,7 @@ or
     );
 
 })
-// non-ascii/utf8 normalized uris
+// utf8 normalized uris
 ->on(['get', 'post'], '/γεια/{:msg}', function($params) {
 
     $session = tico()->request()->getSession();

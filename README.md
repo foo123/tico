@@ -1,6 +1,6 @@
 # tico
 
-Mini, super-simple and versatile MVC Web Framework for PHP (**v.1.22.0** in progress)
+Mini, super-simple and versatile MVC Web Framework for PHP (**v.1.22.0**)
 
 
 **Uses:**
@@ -202,7 +202,7 @@ or
     );
 
 })
-// non-ascii/unicode normalized uris
+// unicode normalized uris
 ->on(['get', 'post'], '/γεια/{:msg}', function($params) {
 
     $session = tico()->request()->getSession();

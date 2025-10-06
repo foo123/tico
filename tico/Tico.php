@@ -715,7 +715,7 @@ class Tico
         if ('' === $request_uri)
             $request_uri = '/';
 
-        if ($normalized) $request_uri = strtolower(urldecode($request_uri));
+        if ($normalized) $request_uri = strtolower($request_uri);
         return $request_uri;
     }
 
@@ -769,11 +769,18 @@ class Tico
                 $route['handler'] = function($route) use ($handler) {
                     $_params = $this->variable('_tico_route__params');
                     if (!isset($_params)) $_params = array(array(), array());
-                    $original_key = $this->option('normalized_uris') ? $this->option('original_params_key') : null;
-                    $params = $_params[0]; if ($original_key) $params[$original_key] = $_params[1];
                     $this->variable('_tico_route__params', null);
                     $this->variable('_tico_route__data', null);
-                    if ($this->option('route_params_object')) $params = new TicoParams($params, $original_key);
+                    if ($this->option('route_params_object'))
+                    {
+                        $params = new TicoParams($_params[0], $_params[1]);
+                    }
+                    else
+                    {
+                        $original_key = $this->option('normalized_uris') ? $this->option('original_params_key') : null;
+                        $params = $_params[0];
+                        if ($original_key) $params[$original_key] = $_params[1];
+                    }
                     return call_user_func($handler, $params);
                 };
                 $router->on($route);
@@ -1071,8 +1078,8 @@ class Tico
                 // not ascii
                 $part2 = $normalize ? call_user_func($normalize, $part1, $i, $parts, $parts1, $parts2) : $part1;
             }
-            $parts1[] = $part1;
-            $parts2[] = $part2;
+            $parts1[] = str_replace('/', '%2F', $part1); // escape /
+            $parts2[] = str_replace('/', '%2F', $part2); // escape /
             $l1 = strlen($part1);
             $l2 = strlen($part2);
             $l3 = strlen($part);
@@ -1095,11 +1102,15 @@ class Tico
                 $e = $pos[3]-($pos[1]-$end);
                 if ($s < $e)
                 {
-                    $params[1][$key] = substr($data[1], $s, $e-$s);
+                    $params[1][$key] = str_replace('%2F', '/', substr($data[1], $s, $e-$s)); // unescape /
                     $found = true;
                 }
                 break;
             }
+        }
+        if (!empty($data[3]))
+        {
+            $val = str_replace('%2F', '/', $val); // unescape /
         }
         $params[0][$key] = $val;
         if (!$found) $params[1][$key] = $val;
@@ -1294,23 +1305,10 @@ class TicoParams
     protected $datao = null;
     protected $datai = null;
 
-    public function __construct($data = array(), $orig_key = null)
+    public function __construct($datao = array(), $datai = null)
     {
-        $this->datao = array();
-        $this->datai = array();
-        foreach ($data as $key => $val)
-        {
-            if ($key === $orig_key) continue;
-            $this->datao[$key] = $val;
-        }
-        if (!empty($orig_key) && isset($data[$orig_key]))
-        {
-            foreach ((array)$data[$orig_key] as $key => $val)
-            {
-                if (!isset($this->datao[$key])) continue;
-                $this->datai[$key] = $val;
-            }
-        }
+        $this->datao = $datao;
+        $this->datai = empty($datai) ? $datao : $datai;
     }
 
     public function get($key, $default = null, $original = false)
