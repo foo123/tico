@@ -952,7 +952,7 @@ class Tico
         $this->hook('tico_before_serve');
         $this->request();
 
-        $passed = true;
+        $this->variable('_tico_middleware__passed', true);
 
         if (!empty($this->Middleware->before))
         {
