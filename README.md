@@ -275,11 +275,11 @@ or
 })
 ->on('*', '/json/api', function() {
 
-    tico()->output(array(
+    tico()->output([
         'param1' => '123',
         'param2' => '456',
         'param3' => '789'
-    ), 'json');
+    ], 'json');
 
 })
 ->on('*', '/download', function() {
@@ -323,11 +323,11 @@ or
 **see also:**
 
 * [ModelView](https://github.com/foo123/modelview.js) a simple, fast, powerful and flexible MVVM framework for JavaScript
-* [tico](https://github.com/foo123/tico) a tiny, super-simple MVC framework for PHP
+* [tico](https://github.com/foo123/tico) a mini, super-simple MVC framework for PHP
 * [LoginManager](https://github.com/foo123/LoginManager) a simple, barebones agnostic login manager for PHP, JavaScript, Python
 * [SimpleCaptcha](https://github.com/foo123/simple-captcha) a simple, image-based, mathematical captcha with increasing levels of difficulty for PHP, JavaScript, Python
 * [Dromeo](https://github.com/foo123/Dromeo) a flexible, and powerful agnostic router for PHP, JavaScript, Python
-* [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for PHP, JavaScript, Python
+* [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a flexible publish-subscribe pattern implementation for PHP, JavaScript, Python
 * [Localizer](https://github.com/foo123/Localizer) a simple and versatile localization class (l10n) for PHP, JavaScript, Python
 * [Importer](https://github.com/foo123/Importer) simple class &amp; dependency manager and loader for PHP, JavaScript, Python
 * [EazyHttp](https://github.com/foo123/EazyHttp), easy, simple and fast HTTP requests for PHP, JavaScript, Python
